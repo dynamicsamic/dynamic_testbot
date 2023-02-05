@@ -4,17 +4,18 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
+import aiohttp
 import yadisk_async
 from aiogram import Bot, Dispatcher, executor, types
 from decouple import config
 
-from utils import update_envar
+from handlers import register_handlers_common
+from utils import TIME_API_URL, get_current_date, update_envar
 
 BASE_DIR = Path(__name__).resolve().parent
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
-import json
 
 BOT_TOKEN = config("BOT_TOKEN")
 YADISK_TOKEN = config("YADISK_TOKEN")
@@ -25,32 +26,6 @@ TEMP_FILE_NAME = "temp.xlsx"
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
 disk = yadisk_async.YaDisk(token=YADISK_TOKEN)
-
-
-@dp.message_handler(commands="random")
-async def cmd_random(message: types.Message):
-    keyboard = types.InlineKeyboardMarkup()
-    keyboard.add(
-        types.InlineKeyboardButton(
-            text="Нажми меня", callback_data="random_value"
-        )
-    )
-    await message.answer(
-        "Нажмите на кнопку, чтобы бот отправил число от 1 до 10",
-        reply_markup=keyboard,
-    )
-
-
-@dp.callback_query_handler(text="random_value")
-async def send_random_value(call: types.CallbackQuery):
-    disk = yadisk_async.YaDisk(token=YADISK_TOKEN)
-    file_name = "temp.xlsx"
-    if await disk.check_token():
-        file_name = "passed"
-
-    await disk.download(YADISK_FILEPATH, str(BASE_DIR / file_name))
-    await disk.close()
-    await call.message.answer(file_name)
 
 
 async def get_file_from_yadisk(
@@ -93,10 +68,10 @@ async def start(message: types.Message):
     await message.reply("hefdfdf")
 
 
-@dp.message_handler(commands=["help"])
-async def help(message: types.Message):
-    messages = await dp.bot.get_my_commands()
-    await message.answer(messages)
+# @dp.message_handler(commands=["help"])
+# async def help(message: types.Message):
+#    messages = await dp.bot.get_my_commands()
+#    await message.answer(messages)
 
 
 @dp.callback_query_handler(text="cofrm_code")
@@ -105,15 +80,11 @@ async def get_confrm_code(call: types.CallbackQuery):
     disk.secret = config("YANDEX_SECRET_CLIENT")
     url = disk.get_code_url()
     await call.message.answer(url)
-    # await call.message.answer("called")
     await call.answer()
 
 
 @dp.message_handler(commands=["bdays"])
 async def get_bdays(message: types.Message):
-    # 1. check yadisk token
-    # 2. if false -> send message to call /code commanf
-    # 3. if true -> proceed further
     if not await disk.check_token():
         kbd = types.InlineKeyboardMarkup()
         kbd.add(
@@ -126,8 +97,8 @@ async def get_bdays(message: types.Message):
             reply_markup=kbd,
         )
     else:
-        results = await get_file_from_yadisk(message, disk, YADISK_FILEPATH)
-        await message.answer(results)
+        file = await get_file_from_yadisk(message, disk, YADISK_FILEPATH)
+        await message.answer(file)
 
 
 @dp.message_handler(commands=["code"])
@@ -173,9 +144,17 @@ async def send_joke():
     pass
 
 
+@dp.message_handler(commands=["test"])
+async def test_thing(message: types.Message):
+    async with aiohttp.ClientSession() as session:
+        today = await get_current_date(session, TIME_API_URL)
+        await message.answer(today)
+
+
 async def main():
     send_scheduled_msg = False
 
 
 if __name__ == "__main__":
+    register_handlers_common(dp)
     executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
