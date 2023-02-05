@@ -8,6 +8,8 @@ import yadisk_async
 from aiogram import Bot, Dispatcher, executor, types
 from decouple import config
 
+from utils import update_envar
+
 BASE_DIR = Path(__name__).resolve().parent
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
@@ -18,10 +20,11 @@ BOT_TOKEN = config("BOT_TOKEN")
 YADISK_TOKEN = config("YADISK_TOKEN")
 YADISK_TOKEN_TEST = config("YADISK_TOKEN_TEST")
 YADISK_FILEPATH = "disk:/b_day/b_days.xlsx"
+TEMP_FILE_NAME = "temp.xlsx"
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(bot)
-disk = yadisk_async.YaDisk(token=YADISK_TOKEN_TEST)
+disk = yadisk_async.YaDisk(token=YADISK_TOKEN)
 
 
 @dp.message_handler(commands="random")
@@ -51,39 +54,22 @@ async def send_random_value(call: types.CallbackQuery):
 
 
 async def get_file_from_yadisk(
-    message: types.Message, token: str, path: str
+    message: types.Message,
+    disk: yadisk_async.YaDisk,
+    path: str,
+    temp_fname: str = TEMP_FILE_NAME,
 ) -> str:
-    disk = yadisk_async.YaDisk(token=token)
-    file_name = "temp.xlsx"
-    if not await disk.check_token():
-        error_message = "Invalid yadisk token"
+    try:
+        await disk.download(path, str(BASE_DIR / temp_fname))
+        logger.info("Yadisk file download SUCCESS!")
+    except Exception as e:
+        error_message = f"Yadisk file download failure: {e}"
         logger.error(error_message)
-        disk.id = config("YANDEX_APP_ID")
-        disk.secret = config("YANDEX_SECRET_CLIENT")
-        url = disk.get_code_url()
-        kbd = types.InlineKeyboardMarkup()
-        kbd.add(
-            types.InlineKeyboardButton(
-                text="Получить код", callback_data="cofrm_code"
-            )
-        )
         await message.answer(
-            f"Токен безопасности Яндекс Диска устарел. Для получения нового токена необходим код подтверждения. Для получения кода подвтерждения пройдите по ссылке {url}.\nВойдите в Яндекс аккаунт, на котором хранится Excel файл с данными о днях рождениях. После этого вы автоматически перейдете на страницу получения кода подвтерждения. Скопируйте этот код и отправьте его боту с командой `token`.",
-            reply_markup=kbd,
+            "При скачивании файла произошла ошибка.\nОбратитесь к разработчику"
         )
-        # await disk.close()
-        # await message.answer(error_message)
-        # return
-    # try:
-    #    await disk.download(path, str(BASE_DIR / file_name))
-    #    logger.info("Yadisk file download SUCCESS!")
-    # except Exception as e:
-    #    error_message = f"Yadisk file download failure: {e}"
-    #    logger.error(error_message)
-    #    await message.answer(error_message)
-    #    # sys.exit(error_message)
     await disk.close()
-    return file_name
+    return temp_fname
 
 
 async def set_bot_commands(bot: Bot):
@@ -91,6 +77,7 @@ async def set_bot_commands(bot: Bot):
         types.BotCommand("help", "помощь"),
         types.BotCommand("menu", "список всех комманд"),
         types.BotCommand("bdays", "список ближайших дней рождений"),
+        types.BotCommand("code", "получить код подтверждения яндекса"),
         types.BotCommand("joke", "пошутить"),
         types.BotCommand("test", "для тестирования"),
     ]
@@ -99,12 +86,6 @@ async def set_bot_commands(bot: Bot):
 
 async def on_startup(dp: Dispatcher):
     await set_bot_commands(dp.bot)
-
-
-@dp.callback_query_handler(text="cofrm_code")
-async def confrm_code(call: types.CallbackQuery):
-    await call.message.answer("called")
-    await call.answer()
 
 
 @dp.message_handler(commands=["start"])
@@ -118,18 +99,73 @@ async def help(message: types.Message):
     await message.answer(messages)
 
 
+@dp.callback_query_handler(text="cofrm_code")
+async def get_confrm_code(call: types.CallbackQuery):
+    disk.id = config("YANDEX_APP_ID")
+    disk.secret = config("YANDEX_SECRET_CLIENT")
+    url = disk.get_code_url()
+    await call.message.answer(url)
+    # await call.message.answer("called")
+    await call.answer()
+
+
 @dp.message_handler(commands=["bdays"])
 async def get_bdays(message: types.Message):
     # 1. check yadisk token
-    # 2. if false -> send message to call /token commanf
+    # 2. if false -> send message to call /code commanf
     # 3. if true -> proceed further
     if not await disk.check_token():
-        await message.answer("false")
-    else:
-        results = await get_file_from_yadisk(
-            message, YADISK_TOKEN_TEST, YADISK_FILEPATH
+        kbd = types.InlineKeyboardMarkup()
+        kbd.add(
+            types.InlineKeyboardButton(
+                text="Получить код", callback_data="cofrm_code"
+            )
         )
+        await message.answer(
+            f"Токен безопасности Яндекс Диска устарел.\nДля получения кода подвтерждения нажмите на кнопку ниже и перейдите по ссылке.\nВ открывшейся вкладке браузера войдите в Яндекс аккаунт, на котором хранится Excel файл с данными о днях рождениях. После этого вы автоматически перейдете на страницу получения кода подвтерждения. Скопируйте этот код и отправьте его боту с командой /code.",
+            reply_markup=kbd,
+        )
+    else:
+        results = await get_file_from_yadisk(message, disk, YADISK_FILEPATH)
         await message.answer(results)
+
+
+@dp.message_handler(commands=["code"])
+async def verify_conf_code(message: types.Message):
+    confrm_code = message.get_args()
+    if not confrm_code:
+        await message.reply(
+            "Вы не передали код. Попробуйте еще раз.\nВведите команду /code, добавьте пробел и напишите ваш код."
+        )
+    else:
+        kbd = types.InlineKeyboardMarkup()
+        try:
+            resp = await disk.get_token(confrm_code)
+        except yadisk_async.exceptions.BadRequestError:
+            kbd.add(
+                types.InlineKeyboardButton(
+                    text="Получить ссылку на новый код",
+                    callback_data="cofrm_code",
+                )
+            )
+            await message.answer(
+                "Вы ввели неверный код. Попробуйте получить новый код.",
+                reply_markup=kbd,
+            )
+        else:
+            new_token = resp.access_token
+            disk.token = new_token
+            if await disk.check_token():
+                logger.warning("checked")
+                # update ya_token env var
+                update_envar(BASE_DIR / ".env", "YADISK_TOKEN_TEST", new_token)
+                await message.reply(
+                    "Код прошел проверку. Получите информацию о днях рождениях партнеров вызвав команду /bdays."
+                )
+            else:
+                await message.answer(
+                    "Что-то пошло не так. Обратитесь к разработчику."
+                )
 
 
 @dp.message_handler(commands=["joke"])
