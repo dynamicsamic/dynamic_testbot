@@ -2,11 +2,20 @@ import datetime as dt
 import logging
 from logging.config import fileConfig
 
-import aiohttp
+import yadisk_async
+from aiogram import types
+from aiohttp import ClientSession
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 TIME_API_URL = "http://worldtimeapi.org/api/timezone/Europe/Moscow"
+
+
+def set_inline_button(**options):
+    """Set an inline keyboard with one button."""
+    kbd = types.InlineKeyboardMarkup()
+    kbd.add(types.InlineKeyboardButton(**options))
+    return kbd
 
 
 def update_envar(path, varname: str, value: str) -> bool:
@@ -19,13 +28,11 @@ def update_envar(path, varname: str, value: str) -> bool:
             contents.append(f"{varname} = {value}")
 
     with open(path, "w") as f:
-        wrote = f.write("".join(contents))
-    return wrote > 0
+        written = f.write("".join(contents))
+    return written > 0
 
 
-async def get_current_date(
-    session: aiohttp.ClientSession, url: str
-) -> dt.date:
+async def get_current_date(session: ClientSession, url: str) -> dt.date:
     """
     Try to fetch current date from external API.
     Use system date if fails.
