@@ -19,7 +19,7 @@ async def cmd_bdays(message: types.Message):
         )
     else:
         source_path = settings.YADISK_FILEPATH
-        output_file = settings.BASE_DIR / settings.TEMP_FILE_NAME
+        output_file = settings.BASE_DIR / settings.OUTPUT_FILE_NAME
         file = await get_file_from_yadisk(
             message, disk, source_path, output_file.as_posix()
         )

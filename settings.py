@@ -12,5 +12,5 @@ YANDEX_APP_ID = config("YANDEX_APP_ID")
 YANDEX_SECRET_CLIENT = config("YANDEX_SECRET_CLIENT")
 YADISK_FILEPATH = "disk:/b_day/b_days.xlsx"
 
-TEMP_FILE_NAME = "temp.xlsx"
+OUTPUT_FILE_NAME = "temp.xlsx"
 TIME_API_URL = "http://worldtimeapi.org/api/timezone/Europe/Moscow"
