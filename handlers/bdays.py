@@ -1,8 +1,9 @@
 import yadisk_async
 from aiogram import types
+from aiohttp import ClientSession
 
 import settings
-from files import get_file_from_yadisk
+from files import collect_bdays, get_file_from_yadisk
 from utils import set_inline_button, update_envar
 
 disk = yadisk_async.YaDisk(token=settings.YADISK_TOKEN)
@@ -23,7 +24,12 @@ async def cmd_bdays(message: types.Message):
         file = await get_file_from_yadisk(
             message, disk, source_path, output_file.as_posix()
         )
-        await message.answer(file)
+        if file:
+            async with ClientSession() as session:
+                await collect_bdays(
+                    message, session, settings.OUTPUT_FILE_NAME
+                )
+        # await message.answer(file)
 
 
 async def cmd_verify_confirm_code(message: types.Message):
