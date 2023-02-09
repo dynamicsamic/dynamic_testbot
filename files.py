@@ -126,6 +126,22 @@ def to_int_month(month: str) -> int:
     }.get(month)
 
 
+def get_formatted_bday_message(
+    today: dt.date = None,
+    **data: dict,
+) -> str:
+    """Return a formatted info message."""
+    today = today or dt.date.today()
+    age = "неизвестно"
+    name = data.get("name", "Неизвестный партнер")
+    day = data.get("day")
+    month = data.get("month")
+    if year := data.get("year"):
+        if year != "?":
+            age = today.year - int(year)
+    return "\n" + f"{name}, {day:>02}-{month}, возраст: {age}"
+
+
 async def collect_bdays(
     message: types.Message,
     session: ClientSession,
@@ -138,6 +154,7 @@ async def collect_bdays(
     future_notifications = []
     today = await get_current_date(session, settings.TIME_API_URL)
     df = excel_to_pd_dataframe(message, path_to_excel, columns)
+    logger.info("Excel convert to dataframe [SUCCESS]")
     extracted_cols = preprocess_pd_dataframe(df, validation_schema, columns)
     for row in extracted_cols:
         day, month, year, name = row
@@ -149,21 +166,33 @@ async def collect_bdays(
             )
             continue
         if birth_date == today:
-            today_notifications.append(birth_date)
+            today_notifications.append(
+                get_formatted_bday_message(
+                    today, day=day, month=month, name=name, year=year
+                )
+            )
         elif (
             dt.timedelta(days=1)
             <= birth_date - today
             <= dt.timedelta(days=future_scope)
         ):
-            future_notifications.append(birth_date)
+            future_notifications.append(
+                get_formatted_bday_message(
+                    today, day=day, month=month, name=name, year=year
+                )
+            )
     if today_notifications:
-        await message.answer(today_notifications)
+        await message.answer(
+            f"#деньрождения сегодня {''.join(today_notifications)}"
+        )
+        logger.info("TODAY BDAYS message sent successfuly")
     if future_notifications:
-        await message.answer(future_notifications)
-
-
-df = pd.DataFrame()
-
-for i in df.index:
-    if not validate_df_row(df.loc[i]):
-        df.drop(i, inplace=True)
+        await message.answer(
+            f"#деньрождения ближайшие {settings.FUTURE_SCOPE} дня: {''.join(future_notifications)}"
+        )
+        logger.info("FUTURE BDAYS message sent successfuly")
+    else:
+        await message.answer(
+            f"на сегодня и ближайшие {settings.FUTURE_SCOPE} дня #деньрождения не найдены."
+        )
+        logger.info("NO BDAYS message sent successfuly")

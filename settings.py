@@ -14,3 +14,4 @@ YADISK_FILEPATH = "disk:/b_day/b_days.xlsx"
 
 OUTPUT_FILE_NAME = "temp.xlsx"
 TIME_API_URL = "http://worldtimeapi.org/api/timezone/Europe/Moscow"
+FUTURE_SCOPE = 3
