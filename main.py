@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher, executor, types
 
 import settings
 from handlers import register_bdays_handlers, register_common_handlers
+from scheduler import Scheduler
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -25,6 +26,7 @@ async def set_bot_commands(bot: Bot):
 
 
 async def on_startup(dp: Dispatcher):
+    Scheduler.start()
     await set_bot_commands(dp.bot)
 
 

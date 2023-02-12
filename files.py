@@ -15,6 +15,15 @@ from utils import get_current_date
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
+from pydantic import BaseModel, Field
+
+
+class RowSchema(BaseModel):
+    date: int = Field(..., alias="Дата", gt=1, lt=32)
+
+
+class DFSchema(BaseModel):
+    df: list[RowSchema]
 
 
 async def get_file_from_yadisk(
@@ -146,10 +155,12 @@ async def collect_bdays(
     message: types.Message,
     session: ClientSession,
     path_to_excel: str,
+    columns: Sequence = None,
+    future_scope: int = None,
     validation_schema=birthday_schema,
-    columns=("Дата", "месяц", "год", "ФИО"),
-    future_scope: int = 3,
 ):
+    columns = settings.COLUMNS or columns
+    future_scope = settings.FUTURE_SCOPE or future_scope
     today_notifications = []
     future_notifications = []
     today = await get_current_date(session, settings.TIME_API_URL)
