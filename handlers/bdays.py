@@ -1,12 +1,26 @@
 import yadisk_async
-from aiogram import types
+from aiogram import Bot, types
 from aiohttp import ClientSession
 
 import settings
 from files import collect_bdays, get_file_from_yadisk
 from utils import set_inline_button, update_envar
 
-disk = yadisk_async.YaDisk(token=settings.YADISK_TOKEN)
+disk = yadisk_async.YaDisk(token=settings.YADISK_TOKEN_TEST)
+
+
+async def get_bdays(bot: Bot):
+    if not await disk.check_token():
+        kbd = set_inline_button(
+            text="Получить код", callback_data="confirm_code"
+        )
+        await bot.send_message(
+            chat_id=359722292,
+            text=f"Токен безопасности Яндекс Диска устарел.\nДля получения кода подвтерждения нажмите на кнопку ниже и перейдите по ссылке.\nВ открывшейся вкладке браузера войдите в Яндекс аккаунт, на котором хранится Excel файл с данными о днях рождениях. После этого вы автоматически перейдете на страницу получения кода подвтерждения. Скопируйте этот код и отправьте его боту с командой /code.",
+            reply_markup=kbd,
+        )
+    else:
+        await bot.send_message(chat_id=359722292, text="OKOK")
 
 
 async def cmd_bdays(message: types.Message):
