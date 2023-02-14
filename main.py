@@ -7,18 +7,15 @@ from apscheduler.triggers.cron import CronTrigger
 
 import settings
 from handlers import register_bdays_handlers, register_common_handlers
-from handlers.bdays import get_bdays
+
+# from handlers.bdays import get_bdays_sched
 from scheduler import Scheduler
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
-bot = Bot(token=settings.BOT_TOKEN)
-dp = Dispatcher(bot)
 
-
-async def foo():
-    await bot.send_message(chat_id=359722292, text="hello friend")
+from bot import dp
 
 
 async def set_bot_commands(bot: Bot):
@@ -33,18 +30,18 @@ async def set_bot_commands(bot: Bot):
 
 
 async def on_startup(dp: Dispatcher):
-    Scheduler.add_job(
-        get_bdays,
-        "interval",
-        seconds=30,
-        # "cron",
-        # day_of_week="mon-fri",
-        # hour=10,
-        # second="*",
-        # trigger=CronTrigger(day_of_week="mon-fri"),
-        kwargs={"bot": bot},
-        replace_existing=True,
-    )
+    #    Scheduler.add_job(
+    #        get_bdays_sched,
+    #        "interval",
+    #        seconds=10,
+    #        # "cron",
+    #        # day_of_week="mon-fri",
+    #        # hour=10,
+    #        # second="*",
+    #        # trigger=CronTrigger(day_of_week="mon-fri"),
+    #        kwargs={"bot": bot},
+    #        replace_existing=True,
+    #    )
     Scheduler.start()
     await set_bot_commands(dp.bot)
 

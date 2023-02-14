@@ -3,32 +3,20 @@ from aiogram import Bot, types
 from aiohttp import ClientSession
 
 import settings
+from bot import bot
 from files import collect_bdays, get_file_from_yadisk
-from utils import set_inline_button, update_envar
+from scheduler import Scheduler
+from utils import MsgProvider, set_inline_button, update_envar
 
-disk = yadisk_async.YaDisk(token=settings.YADISK_TOKEN_TEST)
+disk = yadisk_async.YaDisk(token=settings.YADISK_TOKEN)
 
 
-async def get_bdays(bot: Bot):
+async def get_bdays(msg_provider: MsgProvider):
     if not await disk.check_token():
         kbd = set_inline_button(
             text="Получить код", callback_data="confirm_code"
         )
-        await bot.send_message(
-            chat_id=359722292,
-            text=f"Токен безопасности Яндекс Диска устарел.\nДля получения кода подвтерждения нажмите на кнопку ниже и перейдите по ссылке.\nВ открывшейся вкладке браузера войдите в Яндекс аккаунт, на котором хранится Excel файл с данными о днях рождениях. После этого вы автоматически перейдете на страницу получения кода подвтерждения. Скопируйте этот код и отправьте его боту с командой /code.",
-            reply_markup=kbd,
-        )
-    else:
-        await bot.send_message(chat_id=359722292, text="OKOK")
-
-
-async def cmd_bdays(message: types.Message):
-    if not await disk.check_token():
-        kbd = set_inline_button(
-            text="Получить код", callback_data="confirm_code"
-        )
-        await message.answer(
+        await msg_provider.dispatch_text(
             f"Токен безопасности Яндекс Диска устарел.\nДля получения кода подвтерждения нажмите на кнопку ниже и перейдите по ссылке.\nВ открывшейся вкладке браузера войдите в Яндекс аккаунт, на котором хранится Excel файл с данными о днях рождениях. После этого вы автоматически перейдете на страницу получения кода подвтерждения. Скопируйте этот код и отправьте его боту с командой /code.",
             reply_markup=kbd,
         )
@@ -36,14 +24,72 @@ async def cmd_bdays(message: types.Message):
         source_path = settings.YADISK_FILEPATH
         output_file = settings.BASE_DIR / settings.OUTPUT_FILE_NAME
         file = await get_file_from_yadisk(
-            message, disk, source_path, output_file.as_posix()
+            msg_provider, disk, source_path, output_file.as_posix()
         )
         if file:
             async with ClientSession() as session:
                 await collect_bdays(
-                    message, session, settings.OUTPUT_FILE_NAME
+                    msg_provider, session, settings.OUTPUT_FILE_NAME
                 )
-        # await message.answer(file)
+
+
+async def get_bdays_sched(bot: Bot, chat_id: int):
+    msg_provider = MsgProvider(bot, chat_id=chat_id)
+    await get_bdays(msg_provider)
+
+
+async def cmd_bdays(message: types.Message):
+    msg_provider = MsgProvider(message)
+    await get_bdays(msg_provider)
+
+
+chats_recieving_sched_bdays = set()
+
+
+async def cmd_start_bdays(message: types.Message):
+    chat_id = message.chat.id
+    if chat_id not in chats_recieving_sched_bdays:
+        Scheduler.add_job(
+            get_bdays_sched,
+            "cron",
+            day_of_week="mon-sun",
+            hour=10,
+            kwargs={"bot": bot, "chat_id": chat_id},
+            replace_existing=True,
+        )
+        chats_recieving_sched_bdays.add(chat_id)
+        await message.answer(
+            "Ежедневная рассылка списка дней рождения партнеров для данного чата запланирована."
+            "Рассылка осуществляется каждый день в 10:00 МСК."
+        )
+    else:
+        await message.answer(
+            "Данный чат уже получает ежедневную рассылку дней рождения партнеров."
+        )
+
+
+# async def cmd_bdays(message: types.Message):
+#    if not await disk.check_token():
+#        kbd = set_inline_button(
+#            text="Получить код", callback_data="confirm_code"
+#        )
+#        await message.answer(
+#            f"Токен безопасности Яндекс Диска устарел.\nДля получения кода подвтерждения нажмите на кнопку ниже и перейдите по ссылке.\nВ открывшейся вкладке браузера войдите в Яндекс аккаунт, на котором хранится Excel файл с данными о днях рождениях. После этого вы автоматически перейдете на страницу получения кода подвтерждения. Скопируйте этот код и отправьте его боту с командой /code.",
+#            reply_markup=kbd,
+#        )
+#    else:
+#        source_path = settings.YADISK_FILEPATH
+#        output_file = settings.BASE_DIR / settings.OUTPUT_FILE_NAME
+#        file = await get_file_from_yadisk(
+#            message, disk, source_path, output_file.as_posix()
+#        )
+#        if file:
+#            async with ClientSession() as session:
+#                await collect_bdays(
+#                    message, session, settings.OUTPUT_FILE_NAME
+#                )
+#        # await message.answer(file)
+#
 
 
 async def cmd_verify_confirm_code(message: types.Message):

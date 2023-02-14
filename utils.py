@@ -65,6 +65,8 @@ async def get_current_date(session: ClientSession, url: str) -> dt.date:
 
 
 class MsgProvider:
+    """Class for abstracting telegram message delivery process."""
+
     def __init__(
         self, source: types.Message | aiogram.Bot, chat_id: int = None
     ):
@@ -73,13 +75,21 @@ class MsgProvider:
         elif isinstance(source, aiogram.Bot) and isinstance(chat_id, int):
             self.sender = partial(source.send_message, chat_id=chat_id)
         else:
-            raise ValueError(
-                "source must be either an aiogram.types.Message or aiogram.Bot instance. Bot instance requires chat_id arg to be a valid telegram chat id."
-            )
+            pass
+            # raise ValueError(
+            #    "source must be either an aiogram.types.Message or aiogram.Bot instance. Bot instance requires chat_id arg to be a valid telegram chat id."
+            # )
         self.source = source
 
-    async def send(self, text: str = None):
+    async def dispatch_text(
+        self, text: str = None, *args, **kwargs
+    ) -> types.Message:
+        """
+        Send text message.
+        Same as `send_message` for aiogram.Bot or
+        `answer` for aiogram.types.Message.
+        """
         try:
-            return await self.sender(text=text)
+            return await self.sender(text=text, *args, **kwargs)
         except Exception as e:
             logger.error(f"msg_provider message dispatch error: {e}")

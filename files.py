@@ -27,7 +27,7 @@ class DFSchema(BaseModel):
 
 
 async def get_file_from_yadisk(
-    message: types.Message,
+    msg_provider: MsgProvider,
     disk: YaDisk,
     source_path: str,
     output_file: str,
@@ -44,7 +44,7 @@ async def get_file_from_yadisk(
         error_message = f"YaDisk file download FAILURE!: {e}"
         logger.error(error_message)
         downloaded = False
-        await message.answer(
+        await msg_provider.dispatch_text(
             "При скачивании файла произошла ошибка.\n"
             "Обратитесь к разработчику"
         )
@@ -53,21 +53,21 @@ async def get_file_from_yadisk(
 
 
 def excel_to_pd_dataframe(
-    message: types.Message, file_path: str, columns: Sequence = None
+    msg_provider: MsgProvider, file_path: str, columns: Sequence = None
 ) -> pd.DataFrame:
     """Translate excel file into pandas dataframe."""
     try:
         df = pd.DataFrame(pd.read_excel(file_path), columns=columns)
     except FileNotFoundError as e:
         logger.error(f"Pandas could not find bday file: {e}")
-        message.answer(
+        msg_provider.dispatch_text(
             "Файл не найден.\nВозможно, произошла проблема со скачиванием файла.\nПожалуйста, обратитесь к разработчику."
         )
     except Exception as e:
         logger.error(
             f"Unexpected error occur while parsing file with pandas: {e}"
         )
-        message.answer(
+        msg_provider.dispatch_text(
             "В процессе обработки файла произошла ошибка.\nПожалуйста, обратитесь к разработчику."
         )
     return df
@@ -152,7 +152,7 @@ def get_formatted_bday_message(
 
 
 async def collect_bdays(
-    message: types.Message,
+    msg_provider: MsgProvider,
     session: ClientSession,
     path_to_excel: str,
     columns: Sequence = None,
@@ -164,7 +164,7 @@ async def collect_bdays(
     today_notifications = []
     future_notifications = []
     today = await get_current_date(session, settings.TIME_API_URL)
-    df = excel_to_pd_dataframe(message, path_to_excel, columns)
+    df = excel_to_pd_dataframe(msg_provider, path_to_excel, columns)
     logger.info("Excel convert to dataframe [SUCCESS]")
     extracted_cols = preprocess_pd_dataframe(df, validation_schema, columns)
     for row in extracted_cols:
@@ -193,17 +193,17 @@ async def collect_bdays(
                 )
             )
     if today_notifications:
-        await message.answer(
+        await msg_provider.dispatch_text(
             f"#деньрождения сегодня {''.join(today_notifications)}"
         )
         logger.info("TODAY BDAYS message sent successfuly")
     if future_notifications:
-        await message.answer(
+        await msg_provider.dispatch_text(
             f"#деньрождения ближайшие {settings.FUTURE_SCOPE} дня: {''.join(future_notifications)}"
         )
         logger.info("FUTURE BDAYS message sent successfuly")
     else:
-        await message.answer(
+        await msg_provider.dispatch_text(
             f"на сегодня и ближайшие {settings.FUTURE_SCOPE} дня #деньрождения не найдены."
         )
         logger.info("NO BDAYS message sent successfuly")

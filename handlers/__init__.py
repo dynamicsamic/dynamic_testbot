@@ -1,6 +1,11 @@
 from aiogram import Dispatcher
 
-from .bdays import cmd_bdays, cmd_verify_confirm_code, get_confirm_code
+from .bdays import (
+    cmd_bdays,
+    cmd_start_bdays,
+    cmd_verify_confirm_code,
+    get_confirm_code,
+)
 from .common import cmd_help, cmd_start, cmd_test_thing
 
 
@@ -14,3 +19,4 @@ def register_bdays_handlers(dp: Dispatcher):
     dp.register_message_handler(cmd_bdays, commands=["bdays"])
     dp.register_message_handler(cmd_verify_confirm_code, commands=["code"])
     dp.register_callback_query_handler(get_confirm_code, text="confirm_code")
+    dp.register_message_handler(cmd_start_bdays, commands=["start_bdays"])
