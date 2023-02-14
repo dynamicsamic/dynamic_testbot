@@ -11,7 +11,7 @@ from aiohttp import ClientSession
 from yadisk_async import YaDisk
 
 import settings
-from utils import get_current_date
+from utils import MsgProvider, get_current_date
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)

@@ -1,7 +1,9 @@
 import datetime as dt
 import logging
+from functools import partial
 from logging.config import fileConfig
 
+import aiogram
 import yadisk_async
 from aiogram import types
 from aiohttp import ClientSession
@@ -60,3 +62,24 @@ async def get_current_date(session: ClientSession, url: str) -> dt.date:
                 "Формат ответа был изменен."
             )
     return today
+
+
+class MsgProvider:
+    def __init__(
+        self, source: types.Message | aiogram.Bot, chat_id: int = None
+    ):
+        if isinstance(source, types.Message):
+            self.sender = source.answer
+        elif isinstance(source, aiogram.Bot) and isinstance(chat_id, int):
+            self.sender = partial(source.send_message, chat_id=chat_id)
+        else:
+            raise ValueError(
+                "source must be either an aiogram.types.Message or aiogram.Bot instance. Bot instance requires chat_id arg to be a valid telegram chat id."
+            )
+        self.source = source
+
+    async def send(self, text: str = None):
+        try:
+            return await self.sender(text=text)
+        except Exception as e:
+            logger.error(f"msg_provider message dispatch error: {e}")
