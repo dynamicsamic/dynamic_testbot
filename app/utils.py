@@ -4,7 +4,6 @@ from functools import partial
 from logging.config import fileConfig
 
 import aiogram
-import yadisk_async
 from aiogram import types
 from aiohttp import ClientSession
 

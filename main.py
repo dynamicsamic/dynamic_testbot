@@ -1,47 +1,31 @@
-import asyncio
 import logging
 from logging.config import fileConfig
 
 from aiogram import Bot, Dispatcher, executor, types
-from apscheduler.triggers.cron import CronTrigger
 
-import settings
-from handlers import register_bdays_handlers, register_common_handlers
-
-# from handlers.bdays import get_bdays_sched
-from scheduler import Scheduler
+from app.handlers import register_bdays_handlers, register_common_handlers
+from app.scheduler import Scheduler
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
 
-from bot import dp
+from app.bot import dispatcher as dp
 
 
 async def set_bot_commands(bot: Bot):
     commands = [
-        types.BotCommand("help", "помощь"),
+        # types.BotCommand("help", "помощь"),
         types.BotCommand("bdays", "список ближайших дней рождений"),
+        types.BotCommand("bdays_add", "начать ежедневную рассылку"),
         types.BotCommand("code", "код подтверждения яндекс диска"),
-        types.BotCommand("joke", "пошутить"),
-        types.BotCommand("test", "для тестирования"),
+        # types.BotCommand("joke", "пошутить"),
+        # types.BotCommand("test", "для тестирования"),
     ]
     await bot.set_my_commands(commands)
 
 
 async def on_startup(dp: Dispatcher):
-    #    Scheduler.add_job(
-    #        get_bdays_sched,
-    #        "interval",
-    #        seconds=10,
-    #        # "cron",
-    #        # day_of_week="mon-fri",
-    #        # hour=10,
-    #        # second="*",
-    #        # trigger=CronTrigger(day_of_week="mon-fri"),
-    #        kwargs={"bot": bot},
-    #        replace_existing=True,
-    #    )
     Scheduler.start()
     await set_bot_commands(dp.bot)
 

@@ -6,24 +6,14 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
-from aiogram import types
 from aiohttp import ClientSession
 from yadisk_async import YaDisk
 
-import settings
-from utils import MsgProvider, get_current_date
+from . import settings
+from .utils import MsgProvider, get_current_date
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
-from pydantic import BaseModel, Field
-
-
-class RowSchema(BaseModel):
-    date: int = Field(..., alias="Дата", gt=1, lt=32)
-
-
-class DFSchema(BaseModel):
-    df: list[RowSchema]
 
 
 async def get_file_from_yadisk(
