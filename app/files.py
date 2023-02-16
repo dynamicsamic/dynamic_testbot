@@ -109,7 +109,8 @@ def preprocess_pd_dataframe(
 
 def to_int_month(month: str) -> int:
     """Return an integer mapping to a month."""
-    return {
+    month = month.lower()
+    months = {
         "январь": 1,
         "февраль": 2,
         "март": 3,
@@ -122,7 +123,15 @@ def to_int_month(month: str) -> int:
         "октябрь": 10,
         "ноябрь": 11,
         "декабрь": 12,
-    }.get(month)
+    }
+    return months.get(month)
+
+
+def decline_month(month: str) -> str:
+    """Return month name in the right declension in Russian."""
+    if month.endswith("т"):
+        return month + "а"
+    return month[:-1] + "я"
 
 
 def get_formatted_bday_message(
@@ -131,14 +140,17 @@ def get_formatted_bday_message(
 ) -> str:
     """Return a formatted info message."""
     today = today or dt.date.today()
-    age = "неизвестно"
+    age_info = ""
     name = data.get("name", "Неизвестный партнер")
+    name = name.strip()
     day = data.get("day")
     month = data.get("month")
+    month = decline_month(month)
     if year := data.get("year"):
         if year != "?":
             age = today.year - int(year)
-    return "\n" + f"{name}, {day:>02}-{month}, возраст: {age}"
+            age_info = f", возраст: {age}"
+    return "\n" + f"{name}, {day} {month}" + age_info
 
 
 async def collect_bdays(

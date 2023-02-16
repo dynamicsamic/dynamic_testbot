@@ -2,18 +2,14 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY ./requirements.txt .
+COPY requirements.txt .
 
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt --no-cache-dir
 
-COPY main.py files.py settings.py utils.py ./
+COPY app ./app
 
-COPY handlers ./handlers
-
-COPY .env .
-
-COPY log_config.conf .
+COPY .env log_config.conf main.py ./
 
 CMD ["python", "main.py"]
 
