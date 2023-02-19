@@ -76,7 +76,7 @@ async def cmd_add_bdays_job(message: types.Message):
             get_bdays_job,
             "cron",
             day_of_week="mon-sun",
-            hour=10,
+            hour=9,
             kwargs={"bot": bot, "chat_id": chat_id},
             replace_existing=True,
         )
@@ -84,7 +84,7 @@ async def cmd_add_bdays_job(message: types.Message):
         await message.answer(
             "Ежедневная рассылка списка дней рождения партнеров "
             "для данного чата запланирована.\n"
-            "Рассылка осуществляется каждый день в 10:00 МСК."
+            "Рассылка осуществляется каждый день в 09:00 МСК."
         )
     else:
         await message.answer(

@@ -16,9 +16,9 @@ from app.bot import dispatcher as dp
 async def set_bot_commands(bot: Bot):
     commands = [
         # types.BotCommand("help", "помощь"),
-        types.BotCommand("bdays", "список ближайших дней рождений"),
+        types.BotCommand("bdays", "список ближайших дней рождения"),
         types.BotCommand("bdays_add", "начать ежедневную рассылку"),
-        types.BotCommand("code", "код подтверждения яндекс диска"),
+        # types.BotCommand("code", "код подтверждения яндекс диска"),
         # types.BotCommand("joke", "пошутить"),
         # types.BotCommand("test", "для тестирования"),
     ]

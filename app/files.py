@@ -99,7 +99,7 @@ def preprocess_pd_dataframe(
     Returns zip generator with given columns.
     """
     #### refactor this
-    df.replace(np.nan, "?", inplace=True)
+    # df.replace(np.nan, "?", inplace=True)
 
     for i in df.index:
         if not validate_df_row(df.loc[i], validation_schema):
@@ -140,17 +140,12 @@ def get_formatted_bday_message(
 ) -> str:
     """Return a formatted info message."""
     today = today or dt.date.today()
-    age_info = ""
     name = data.get("name", "Неизвестный партнер")
     name = name.strip()
     day = data.get("day")
     month = data.get("month")
     month = decline_month(month)
-    if year := data.get("year"):
-        if year != "?":
-            age = today.year - int(year)
-            age_info = f", возраст: {age}"
-    return "\n" + f"{name}, {day} {month}" + age_info
+    return "\n" + f"{name}, {day} {month}"
 
 
 async def collect_bdays(
@@ -170,7 +165,7 @@ async def collect_bdays(
     logger.info("Excel convert to dataframe [SUCCESS]")
     extracted_cols = preprocess_pd_dataframe(df, validation_schema, columns)
     for row in extracted_cols:
-        day, month, year, name = row
+        day, month, name = row
         try:
             birth_date = dt.date(today.year, to_int_month(month), day)
         except TypeError as e:
@@ -181,7 +176,7 @@ async def collect_bdays(
         if birth_date == today:
             today_notifications.append(
                 get_formatted_bday_message(
-                    today, day=day, month=month, name=name, year=year
+                    today, day=day, month=month, name=name
                 )
             )
         elif (
@@ -191,7 +186,7 @@ async def collect_bdays(
         ):
             future_notifications.append(
                 get_formatted_bday_message(
-                    today, day=day, month=month, name=name, year=year
+                    today, day=day, month=month, name=name
                 )
             )
     if today_notifications:
@@ -204,7 +199,7 @@ async def collect_bdays(
             f"#деньрождения ближайшие {settings.FUTURE_SCOPE} дня: {''.join(future_notifications)}"
         )
         logger.info("FUTURE BDAYS message sent successfuly")
-    else:
+    if not (today_notifications or future_notifications):
         await msg_provider.dispatch_text(
             f"на сегодня и ближайшие {settings.FUTURE_SCOPE} дня #деньрождения не найдены."
         )
