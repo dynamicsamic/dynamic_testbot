@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from decouple import config
+from pytz import timezone
 
 BASE_DIR = Path(__name__).resolve().parent
 
@@ -17,3 +18,7 @@ TIME_API_URL = "http://worldtimeapi.org/api/timezone/Europe/Moscow"
 
 COLUMNS = ("Дата", "месяц", "ФИО")
 FUTURE_SCOPE = 3
+TIME_ZONE = timezone("Europe/Moscow")
+
+DB_NAME = "mako.sqlite3"
+DEBUG = True
