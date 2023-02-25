@@ -1,12 +1,17 @@
+import logging
+
 import yadisk_async
 from aiogram import Bot, types
 from aiohttp import ClientSession
+from sqlalchemy.exc import IntegrityError
 
 from app import settings
 from app.bot import bot
+from app.db import Session, models
 from app.files import collect_bdays, get_file_from_yadisk
-from app.scheduler import Scheduler
 from app.utils import MsgProvider, set_inline_button, update_envar
+
+logger = logging.getLogger(__name__)
 
 disk = yadisk_async.YaDisk(token=settings.YADISK_TOKEN)
 
@@ -59,10 +64,6 @@ async def get_bdays_job(bot: Bot, chat_id: int):
     await get_bdays(MsgProvider(bot, chat_id=chat_id))
 
 
-# temprorary workaround; need to add a more robust storage.
-chats_recieving_sched_bdays = set()
-
-
 async def cmd_add_bdays_job(message: types.Message):
     """
     Command for adding `get_birthday` job to scheduler for
@@ -71,26 +72,24 @@ async def cmd_add_bdays_job(message: types.Message):
     Need to implement tihs later.
     """
     chat_id = message.chat.id
-    if chat_id not in chats_recieving_sched_bdays:
-        Scheduler.add_job(
-            get_bdays_job,
-            "cron",
-            day_of_week="mon-sun",
-            hour=9,
-            kwargs={"bot": bot, "chat_id": chat_id},
-            replace_existing=True,
-        )
-        chats_recieving_sched_bdays.add(chat_id)
-        await message.answer(
-            "Ежедневная рассылка списка дней рождения партнеров "
-            "для данного чата запланирована.\n"
-            "Рассылка осуществляется каждый день в 09:00 МСК."
-        )
-    else:
-        await message.answer(
-            "Данный чат уже получает ежедневную рассылку "
-            "дней рождения партнеров."
-        )
+    with Session() as session:
+        if chat_id not in models.TelegramChat.ids(session, to_list=True):
+            session.add(models.TelegramChat(tg_chat_id=chat_id))
+            session.commit()
+            await message.answer(
+                "Ежедневная рассылка списка дней рождения партнеров "
+                "для данного чата запланирована.\n"
+                "Рассылка осуществляется каждый день в 09:00 МСК."
+            )
+            logger.info(f"Chat[{chat_id}] added to mailing list")
+        else:
+            await message.answer(
+                "Данный чат уже получает ежедневную рассылку "
+                "дней рождения партнеров."
+            )
+            logger.info(
+                f"Chat duplication attempt error; skipped for chat {chat_id}"
+            )
 
 
 async def cmd_bdays(message: types.Message):
