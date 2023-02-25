@@ -109,6 +109,7 @@ def preprocess_pd_dataframe(
 
 def to_int_month(month: str) -> int:
     """Return an integer mapping to a month."""
+    month = month.strip()
     month = month.lower()
     months = {
         "январь": 1,
@@ -169,8 +170,9 @@ async def collect_bdays(
         try:
             birth_date = dt.date(today.year, to_int_month(month), day)
         except TypeError as e:
+            print(day, month)
             logger.error(
-                f"date conversion failure: {e}" f"scipped row for {name}"
+                f"date conversion failure: {e}" f"; scipped row for {name}"
             )
             continue
         if birth_date == today:
