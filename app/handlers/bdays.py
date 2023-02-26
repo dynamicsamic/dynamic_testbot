@@ -9,6 +9,7 @@ from app import settings
 from app.bot import bot
 from app.db import Session, models
 from app.files import collect_bdays, get_file_from_yadisk
+from app.scheduler import add_job
 from app.utils import MsgProvider, set_inline_button, update_envar
 
 logger = logging.getLogger(__name__)
