@@ -5,7 +5,7 @@ from aiogram import Bot, Dispatcher, executor, types
 from sqlalchemy import create_engine
 
 from app import settings
-from app.db import Session, events, models
+from app.db import Session, db_engine, events, models
 from app.handlers import register_bdays_handlers, register_common_handlers
 from app.scheduler import Scheduler, load_jobs
 
@@ -30,13 +30,13 @@ async def set_bot_commands(bot: Bot):
 
 async def on_startup(dp: Dispatcher):
     """ """
-    engine = create_engine(
-        f"sqlite:////{settings.BASE_DIR}/{settings.DB_NAME}",
-        echo=settings.DEBUG,
-    )
-    Session.configure(bind=engine)
-    models.Base.metadata.create_all(engine)
-    load_jobs(Session)
+    # engine = create_engine(
+    #    f"sqlite:////{settings.BASE_DIR}/{settings.DB_NAME}",
+    #    echo=settings.DEBUG,
+    # )
+    Session.configure(bind=db_engine)
+    models.Base.metadata.create_all(db_engine)
+    # load_jobs(Session)
     Scheduler.start()
     await set_bot_commands(dp.bot)
 
@@ -51,7 +51,7 @@ async def on_shutdown(_: Dispatcher):
 if __name__ == "__main__":
     register_common_handlers(dp)
     register_bdays_handlers(dp)
-    events.load_events()
+    # events.load_events()
     executor.start_polling(
         dp, skip_updates=True, on_startup=on_startup, on_shutdown=on_shutdown
     )

@@ -1,16 +1,20 @@
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.job import Job
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.orm import Session
 
 from app import settings
 from app.bot import bot
-from app.db import models
+from app.db import db_engine, models
 from app.handlers.bdays import get_bdays_job
+
+jobstores = {"default": SQLAlchemyJobStore(engine=db_engine)}
 
 Scheduler = AsyncIOScheduler(
     timezone=settings.TIME_ZONE,
     executors={"default": AsyncIOExecutor()},
+    jobstores={"default": SQLAlchemyJobStore(engine=db_engine)},
     job_defaults={"misfire_grace_time": 30, "coalesce": True},
 )
 
