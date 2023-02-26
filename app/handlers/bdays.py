@@ -64,7 +64,7 @@ async def get_bdays_job(bot: Bot, chat_id: int):
     await get_bdays(MsgProvider(bot, chat_id=chat_id))
 
 
-async def cmd_add_bdays_job(message: types.Message):
+async def cmd_add_chat_to_bdays_mailing(message: types.Message):
     """
     Command for adding `get_birthday` job to scheduler for
     the chat-requester.
@@ -90,6 +90,10 @@ async def cmd_add_bdays_job(message: types.Message):
             logger.info(
                 f"Chat duplication attempt error; skipped for chat {chat_id}"
             )
+
+
+async def cmd_remove_chat_from_bdays_mailing(message: types.Message):
+    pass
 
 
 async def cmd_bdays(message: types.Message):

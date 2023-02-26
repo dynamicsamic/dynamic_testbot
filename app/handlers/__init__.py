@@ -1,7 +1,7 @@
 from aiogram import Dispatcher
 
 from .bdays import (
-    cmd_add_bdays_job,
+    cmd_add_chat_to_bdays_mailing,
     cmd_bdays,
     cmd_verify_confirm_code,
     get_confirm_code,
@@ -19,4 +19,6 @@ def register_bdays_handlers(dp: Dispatcher):
     dp.register_message_handler(cmd_bdays, commands=["bdays"])
     dp.register_message_handler(cmd_verify_confirm_code, commands=["code"])
     dp.register_callback_query_handler(get_confirm_code, text="confirm_code")
-    dp.register_message_handler(cmd_add_bdays_job, commands=["addchat"])
+    dp.register_message_handler(
+        cmd_add_chat_to_bdays_mailing, commands=["addchat"]
+    )
