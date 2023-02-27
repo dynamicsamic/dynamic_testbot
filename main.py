@@ -30,13 +30,10 @@ async def set_bot_commands(bot: Bot):
 
 async def on_startup(dp: Dispatcher):
     """ """
-    # engine = create_engine(
-    #    f"sqlite:////{settings.BASE_DIR}/{settings.DB_NAME}",
-    #    echo=settings.DEBUG,
-    # )
     Session.configure(bind=db_engine)
     models.Base.metadata.create_all(db_engine)
     # load_jobs(Session)
+    Scheduler.print_jobs()
     Scheduler.start()
     await set_bot_commands(dp.bot)
 

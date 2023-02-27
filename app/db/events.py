@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def after_tg_chat_insert(mapper, connection, target):
+    """Add job after tg chat insert in DB."""
     logger.info("issued chat creation signal")
     add_job(target.tg_chat_id)
 
