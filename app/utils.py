@@ -73,11 +73,10 @@ class MsgProvider:
             self.sender = source.answer
         elif isinstance(source, aiogram.Bot) and isinstance(chat_id, int):
             self.sender = partial(source.send_message, chat_id=chat_id)
+        elif isinstance(source, str):
+            self.build_sender_from_string(source, chat_id)
         else:
             pass
-            # raise ValueError(
-            #    "source must be either an aiogram.types.Message or aiogram.Bot instance. Bot instance requires chat_id arg to be a valid telegram chat id."
-            # )
         self.source = source
 
     async def dispatch_text(
@@ -92,3 +91,15 @@ class MsgProvider:
             return await self.sender(text=text, *args, **kwargs)
         except Exception as e:
             logger.error(f"msg_provider message dispatch error: {e}")
+
+    def build_sender_from_string(self, path: str, chat_id: int = None) -> None:
+        """
+        Route must follow this pattern:
+        `module.submodule: sender_instance`
+        """
+        import importlib
+
+        module_name, instance = path.split(":", 1)
+        module = importlib.import_module(module_name)
+        source = getattr(module, instance)
+        return self.__init__(source, chat_id)

@@ -109,7 +109,7 @@ def preprocess_pd_dataframe(
 
 def to_int_month(month: str) -> int:
     """Return an integer mapping to a month."""
-    month = month.lower()
+    month = month.lower().strip()
     months = {
         "январь": 1,
         "февраль": 2,
@@ -129,6 +129,7 @@ def to_int_month(month: str) -> int:
 
 def decline_month(month: str) -> str:
     """Return month name in the right declension in Russian."""
+    month = month.lower().strip()
     if month.endswith("т"):
         return month + "а"
     return month[:-1] + "я"

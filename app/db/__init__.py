@@ -3,9 +3,17 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 
 from app import settings
 
+app_db = settings.DB["app"]
+jobstore_db = settings.DB["jobstore"]
+
 db_engine = create_engine(
-    f"sqlite:////{settings.BASE_DIR}/{settings.DB_NAME}",
+    f"{app_db['engine']}:////{settings.BASE_DIR}/{app_db['name']}",
     echo=settings.DEBUG,
 )
 
 Session = scoped_session(sessionmaker())
+
+jobstore_engine = create_engine(
+    f"{jobstore_db['engine']}:////{settings.BASE_DIR}/{jobstore_db['name']}",
+    echo=settings.DEBUG,
+)

@@ -3,13 +3,12 @@ import logging
 import yadisk_async
 from aiogram import Bot, types
 from aiohttp import ClientSession
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app import settings
 from app.bot import bot
 from app.db import Session, models
 from app.files import collect_bdays, get_file_from_yadisk
-from app.scheduler import add_job
 from app.utils import MsgProvider, set_inline_button, update_envar
 
 logger = logging.getLogger(__name__)
@@ -65,6 +64,9 @@ async def get_bdays_job(bot: Bot, chat_id: int):
     await get_bdays(MsgProvider(bot, chat_id=chat_id))
 
 
+from app.scheduler import add_job
+
+
 async def cmd_add_bdays_job(message: types.Message):
     """
     Command for adding `get_birthday` job to scheduler for
@@ -73,24 +75,33 @@ async def cmd_add_bdays_job(message: types.Message):
     Need to implement tihs later.
     """
     chat_id = message.chat.id
-    with Session() as session:
-        if chat_id not in models.TelegramChat.ids(session, to_list=True):
-            session.add(models.TelegramChat(tg_chat_id=chat_id))
-            session.commit()
-            await message.answer(
-                "Ежедневная рассылка списка дней рождения партнеров "
-                "для данного чата запланирована.\n"
-                "Рассылка осуществляется каждый день в 09:00 МСК."
-            )
-            logger.info(f"Chat[{chat_id}] added to mailing list")
-        else:
-            await message.answer(
-                "Данный чат уже получает ежедневную рассылку "
-                "дней рождения партнеров."
-            )
-            logger.info(
-                f"Chat duplication attempt error; skipped for chat {chat_id}"
-            )
+    try:
+        job = add_job(chat_id)
+    except Exception as e:
+        logger.error(f"Job error: {e}")
+        await message.answer("something went wrong with job")
+    else:
+        logger.info("Job added successfuly")
+        await message.answer("Job added successfuly")
+    # with Session() as session:
+    # session.add(models.TelegramChat(tg_chat_id=chat_id))
+    # try:
+    #     session.commit()
+    # except SQLAlchemyError as e:
+    #     await message.answer(
+    #         "Данный чат уже получает ежедневную рассылку "
+    #         "дней рождения партнеров."
+    #     )
+    #     logger.info(
+    #         f"Chat duplication attempt error; skipped for chat {chat_id}"
+    #     )
+    # else:
+    #     await message.answer(
+    #         "Ежедневная рассылка списка дней рождения партнеров "
+    #         "для данного чата запланирована.\n"
+    #         "Рассылка осуществляется каждый день в 09:00 МСК."
+    #     )
+    #     logger.info(f"Chat[{chat_id}] added to mailing list")
 
 
 async def cmd_bdays(message: types.Message):

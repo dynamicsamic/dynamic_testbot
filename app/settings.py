@@ -20,5 +20,13 @@ COLUMNS = ("Дата", "месяц", "ФИО")
 FUTURE_SCOPE = 3
 TIME_ZONE = timezone("Europe/Moscow")
 
-DB_NAME = "mako.sqlite3"
 DEBUG = True
+
+DB = {
+    "app": {"engine": "sqlite", "driver": "", "name": config("APP_DB_NAME")},
+    "jobstore": {
+        "engine": "sqlite",
+        "driver": "",
+        "name": config("JOBSTORE_DB_NAME"),
+    },
+}
