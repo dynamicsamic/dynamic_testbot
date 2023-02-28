@@ -1,4 +1,6 @@
+import datetime as dt
 import logging
+import pathlib
 
 import yadisk_async
 from aiogram import Bot, types
@@ -9,11 +11,24 @@ from app import settings
 from app.bot import bot
 from app.db import Session, models
 from app.files import collect_bdays, get_file_from_yadisk
+from app.scheduler import add_job
 from app.utils import MsgProvider, set_inline_button, update_envar
 
 logger = logging.getLogger(__name__)
 
 disk = yadisk_async.YaDisk(token=settings.YADISK_TOKEN)
+
+
+def is_file_fresh(path: pathlib.PosixPath) -> bool:
+    file_refresh_after = dt.timedelta(seconds=180)
+    if path.is_file():
+        last_modified = path.stat().st_mtime
+        modified_timestamp = dt.datetime.fromtimestamp(
+            last_modified, tz=settings.TIME_ZONE
+        )
+        now = dt.datetime.now(tz=settings.TIME_ZONE)
+        return (now - modified_timestamp) < file_refresh_after
+    return False
 
 
 async def get_bdays(msg_provider: MsgProvider) -> types.Message:
@@ -45,9 +60,10 @@ async def get_bdays(msg_provider: MsgProvider) -> types.Message:
     else:
         source_path = settings.YADISK_FILEPATH
         output_file = settings.BASE_DIR / settings.OUTPUT_FILE_NAME
-        file = await get_file_from_yadisk(
-            msg_provider, disk, source_path, output_file.as_posix()
-        )
+        if not is_file_fresh(output_file):
+            file = await get_file_from_yadisk(
+                msg_provider, disk, source_path, output_file.as_posix()
+            )
         if file:
             async with ClientSession() as session:
                 await collect_bdays(
@@ -64,9 +80,6 @@ async def get_bdays_job(bot: Bot, chat_id: int):
     await get_bdays(MsgProvider(bot, chat_id=chat_id))
 
 
-from app.scheduler import add_job
-
-
 async def cmd_add_chat_to_bdays_mailing(message: types.Message):
     """
     Command for adding `get_birthday` job to scheduler for
@@ -79,10 +92,17 @@ async def cmd_add_chat_to_bdays_mailing(message: types.Message):
         job = add_job(chat_id)
     except Exception as e:
         logger.error(f"Job error: {e}")
-        await message.answer("something went wrong with job")
+        await message.answer(
+            "Не удалось добавить чат в список рассылки.\n"
+            "Попробуйте позднее."
+        )
     else:
-        logger.info("Job added successfuly")
-        await message.answer("Job added successfuly")
+        logger.info(f"Chat[{chat_id}] added to mailing list")
+        await message.answer(
+            "Ежедневная рассылка списка дней рождения партнеров "
+            "для данного чата запланирована.\n"
+            "Рассылка осуществляется каждый день в 09:00 МСК."
+        )
     # with Session() as session:
     # session.add(models.TelegramChat(tg_chat_id=chat_id))
     # try:

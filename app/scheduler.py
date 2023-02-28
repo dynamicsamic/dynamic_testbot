@@ -25,7 +25,7 @@ def add_job(chat_id: int) -> Job:
     """Add single bday_job to Scheduler for a single tg_chat."""
     return Scheduler.add_job(
         "app.handlers.bdays:get_bdays_job",
-        trigger=CronTrigger(day_of_week="mon-sun", hour=23, minute=30),
+        trigger=CronTrigger(day_of_week="mon-sun", hour=0, minute=21),
         # "cron",
         # day_of_week="mon-sun",
         # hour=9,

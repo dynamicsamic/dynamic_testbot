@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from aiohttp import ClientSession
 from yadisk_async import YaDisk
+from yadisk_async.exceptions import YaDiskError
 
 from . import settings
 from .utils import MsgProvider, get_current_date
@@ -167,6 +168,9 @@ async def collect_bdays(
     extracted_cols = preprocess_pd_dataframe(df, validation_schema, columns)
     for row in extracted_cols:
         day, month, name = row
+        month = month.lower().strip()
+        day = int(day)
+        name = name.strip()
         try:
             birth_date = dt.date(today.year, to_int_month(month), day)
         except TypeError as e:
