@@ -4,8 +4,11 @@ from functools import partial
 from logging.config import fileConfig
 
 import aiogram
+import pytz
 from aiogram import types
 from aiohttp import ClientSession
+
+from app import settings
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -61,6 +64,12 @@ async def get_current_date(session: ClientSession, url: str) -> dt.date:
                 "Формат ответа был изменен."
             )
     return today
+
+
+def timestamp_to_datetime_string(ts: float) -> str:
+    """Convert timestamp to a datetime string."""
+    date = dt.datetime.fromtimestamp(ts, tz=settings.TIME_ZONE)
+    return f"{date: %d-%m-%Y %H:%M}"
 
 
 class MsgProvider:
