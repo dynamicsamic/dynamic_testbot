@@ -6,19 +6,24 @@ from typing import Sequence
 
 import numpy as np
 import pandas as pd
+from aiogram import Bot
 from aiohttp import ClientSession
 from yadisk_async import YaDisk
-from yadisk_async.exceptions import YaDiskError
+from yadisk_async.exceptions import UnauthorizedError
 
 from . import settings
-from .utils import MsgProvider, get_current_date
+from .utils import (
+    MsgProvider,
+    get_current_date,
+    set_inline_button,
+    timestamp_to_datetime_string,
+)
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
 
 
-async def get_file_from_yadisk(
-    msg_provider: MsgProvider,
+async def download_file_from_yadisk(
     disk: YaDisk,
     source_path: str,
     output_file: str,
@@ -27,40 +32,35 @@ async def get_file_from_yadisk(
     Asynchronously download file from Yandex.Disk.
     In case of failure send a message to request starter.
     """
-    downloaded = True
+    downloaded = False
     try:
         await disk.download(source_path, output_file)
-        logger.info("YaDisk file download SUCCESS!")
     except Exception as e:
         error_message = f"YaDisk file download FAILURE!: {e}"
         logger.error(error_message)
-        downloaded = False
-        await msg_provider.dispatch_text(
-            "При скачивании файла произошла ошибка.\n"
-            "Обратитесь к разработчику"
-        )
-    await disk.close()
-    return downloaded
+        raise
+    else:
+        downloaded = True
+        logger.info("YaDisk file download SUCCESS!")
+    finally:
+        await disk.close()
+        return downloaded
 
 
 def excel_to_pd_dataframe(
-    msg_provider: MsgProvider, file_path: str, columns: Sequence = None
+    file_path: str, columns: Sequence = None
 ) -> pd.DataFrame:
     """Translate excel file into pandas dataframe."""
     try:
         df = pd.DataFrame(pd.read_excel(file_path), columns=columns)
     except FileNotFoundError as e:
         logger.error(f"Pandas could not find bday file: {e}")
-        msg_provider.dispatch_text(
-            "Файл не найден.\nВозможно, произошла проблема со скачиванием файла.\nПожалуйста, обратитесь к разработчику."
-        )
+        raise
     except Exception as e:
         logger.error(
             f"Unexpected error occur while parsing file with pandas: {e}"
         )
-        msg_provider.dispatch_text(
-            "В процессе обработки файла произошла ошибка.\nПожалуйста, обратитесь к разработчику."
-        )
+        raise
     return df
 
 
@@ -147,70 +147,9 @@ def get_formatted_bday_message(
     return "\n" + f"{name}, {day} {month}"
 
 
-async def collect_bdays(
-    msg_provider: MsgProvider,
-    session: ClientSession,
+def collect_bdays(
     path_to_excel: str,
-    columns: Sequence = None,
-    future_scope: int = None,
-    validation_schema=birthday_schema,
-):
-    columns = settings.COLUMNS or columns
-    future_scope = settings.FUTURE_SCOPE or future_scope
-    today_notifications = []
-    future_notifications = []
-    today = await get_current_date(session, settings.TIME_API_URL)
-    df = excel_to_pd_dataframe(msg_provider, path_to_excel, columns)
-    logger.info("Excel convert to dataframe [SUCCESS]")
-    extracted_cols = preprocess_pd_dataframe(df, validation_schema, columns)
-    for row in extracted_cols:
-        day, month, name = row
-        month = month.lower().strip()
-        name = name.strip()
-        try:
-            birth_date = dt.date(today.year, to_int_month(month), day)
-        except TypeError as e:
-            logger.error(
-                f"date conversion failure: {e}" f"; scipped row for {name}"
-            )
-            continue
-        if birth_date == today:
-            today_notifications.append(
-                get_formatted_bday_message(
-                    today, day=day, month=month, name=name
-                )
-            )
-        elif (
-            dt.timedelta(days=1)
-            <= birth_date - today
-            <= dt.timedelta(days=future_scope)
-        ):
-            future_notifications.append(
-                get_formatted_bday_message(
-                    today, day=day, month=month, name=name
-                )
-            )
-    if today_notifications:
-        await msg_provider.dispatch_text(
-            f"#деньрождения сегодня {''.join(today_notifications)}"
-        )
-        logger.info("TODAY BDAYS message sent successfuly")
-    if future_notifications:
-        await msg_provider.dispatch_text(
-            f"#деньрождения ближайшие {settings.FUTURE_SCOPE} дня: {''.join(future_notifications)}"
-        )
-        logger.info("FUTURE BDAYS message sent successfuly")
-    if not (today_notifications or future_notifications):
-        await msg_provider.dispatch_text(
-            f"на сегодня и ближайшие {settings.FUTURE_SCOPE} дня #деньрождения не найдены."
-        )
-        logger.info("NO BDAYS message sent successfuly")
-
-
-async def collect_bdays_v2(
-    msg_provider: MsgProvider,
-    session: ClientSession,
-    path_to_excel: str,
+    today: dt.date,
     columns: Sequence = None,
     future_scope: int = None,
     validation_schema=birthday_schema,
@@ -220,8 +159,8 @@ async def collect_bdays_v2(
     today_notifications = []
     future_notifications = []
     result = []
-    today = await get_current_date(session, settings.TIME_API_URL)
-    df = excel_to_pd_dataframe(msg_provider, path_to_excel, columns)
+    try:
+    df = excel_to_pd_dataframe(path_to_excel, columns)
     logger.info("Excel convert to dataframe [SUCCESS]")
     extracted_cols = preprocess_pd_dataframe(df, validation_schema, columns)
     for row in extracted_cols:
@@ -259,9 +198,68 @@ async def collect_bdays_v2(
             f"#деньрождения ближайшие {settings.FUTURE_SCOPE} дня: {''.join(future_notifications)}"
         )
         logger.info("FUTURE BDAYS message sent successfuly")
+    if not (today_notifications or future_notifications):
+        result.append(
+            f"на сегодня и ближайшие {settings.FUTURE_SCOPE} дня #деньрождения не найдены."
+        )
+        logger.info("NO BDAYS collected")
     return result
-    # if not (today_notifications or future_notifications):
-    #     await msg_provider.dispatch_text(
-    #         f"на сегодня и ближайшие {settings.FUTURE_SCOPE} дня #деньрождения не найдены."
-    #     )
-    #     logger.info("NO BDAYS message sent successfuly")
+
+
+preloaded_data = []
+
+
+async def preload_mailing_notifications(bot: Bot, session: ClientSession):
+    today = await get_current_date(session, settings.TIME_API_URL)
+    downloaded_from_yadisk = False
+    try:
+        downloaded_from_yadisk = await download_file_from_yadisk()
+    except Exception as e:
+        if isinstance(e, UnauthorizedError):
+            kbd = set_inline_button(
+                text="Получить код", callback_data="confirm_code"
+            )
+            await bot.send_message(
+                settings.BOT_MANAGER_TELEGRAM_ID,
+                "Токен безопасности Яндекс Диска устарел.\n"
+                "Для получения кода подвтерждения нажмите на кнопку ниже и "
+                "перейдите по ссылке.\nВ открывшейся вкладке браузера войдите в "
+                "Яндекс аккаунт, на котором хранится Excel файл с данными о днях "
+                "рождениях. После этого вы автоматически перейдете на страницу "
+                "получения кода подвтерждения. Скопируйте этот код и отправьте его "
+                "боту с командой /code.",
+                reply_markup=kbd,
+            )
+            logger.error(
+                "Could not download file from YaDisk - token expired!"
+            )
+        else:
+            logger.error(f"Unexpected YaDisk error: {e}")
+
+    output_file = settings.BASE_DIR / settings.OUTPUT_FILE_NAME
+    if not download_file_from_yadisk:
+        if output_file.is_file():
+            updated_at = timestamp_to_datetime_string(
+                output_file.stat().st_mtime
+            )
+            warning_message = (
+                "Загрузка актуальных данных в настоящее время невозможна."
+                f"Данные актуальны на: {updated_at}"
+            )
+            preloaded_data.append(warning_message)
+            logger.warning(
+                f"File with bdays was not updated. Used older version: {updated_at}"
+            )
+        else:
+            await bot.send_message(
+                settings.BOT_MANAGER_TELEGRAM_ID,
+                (
+                    "Файл с перечнем дней рождения партнеров не найден в системе."
+                    "Отправка уведомлений получателям невозможна."
+                    "Обратитесь к разработчику."
+                ),
+            )
+            logger.error("No file with bdays found!")
+            return
+    notifications = await collect_bdays()
+    preloaded_data.append(*notifications)

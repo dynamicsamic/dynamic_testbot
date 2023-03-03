@@ -7,6 +7,7 @@ from yadisk_async import YaDisk
 from yadisk_async import exceptions as yadisk_errors
 
 from app import settings
+from app.files import collect_bdays_v2
 from app.utils import timestamp_to_datetime_string
 
 fake_token = "faketoken"
@@ -41,7 +42,19 @@ async def download_file_from_yadisk(
 bot = list()  # delete this stupid thing
 
 
-async def preload_mailing_notifications():
+async def preload_mailing_notifications(bot):
+    try:
+        await download_file_from_yadisk()
+    except Exception as e:
+        if isinstance(e, yadisk_errors.UnauthorizedError):
+            await bot.send_message("get_new_code callback")
+            logger
+        # if issubclass(type(e), yadisk_errors.YaDiskError):
+        #     await bot.send_message()
+        #     logger
+        else:
+            logger
+
     result, error = await download_file_from_yadisk()
     if not result:
         if issubclass(error.__class__, yadisk_errors.YaDiskError):
@@ -68,15 +81,15 @@ async def preload_mailing_notifications():
                 "to_manager", "no file available. need help"
             )
             return
+        notifications = await collect_bdays_v2()
+        preloaded_data.append(*notifications)
 
 
-def preload_birthday_data() -> tuple:
-    """Store formatted messages in tuple"""
-    download_file_from_yadisk
-    notify_if_yadisk_failure
-    # process excel file
-    # store data in global tuple
-    pass
+async def dispatch_mailing(bot, chat_id: int):
+    if not preloaded_data:
+        await preload_mailing_notifications()
+    for message in preloaded_data:
+        bot.send_message(chat_id, message)
 
 
 import datetime as dt

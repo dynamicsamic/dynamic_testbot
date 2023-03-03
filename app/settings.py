@@ -6,6 +6,7 @@ from pytz import timezone
 BASE_DIR = Path(__name__).resolve().parent
 
 BOT_TOKEN = config("BOT_TOKEN")
+BOT_MANAGER_TELEGRAM_ID = config("BOT_MANAGER_TELEGRAM_ID")
 
 YADISK_TOKEN = config("YADISK_TOKEN")
 YADISK_TOKEN_TEST = config("YADISK_TOKEN_TEST")
