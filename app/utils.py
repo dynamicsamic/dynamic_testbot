@@ -5,7 +5,7 @@ from logging.config import fileConfig
 
 import aiogram
 import pytz
-from aiogram import types
+from aiogram import Bot, types
 from aiohttp import ClientSession
 
 from app import settings
@@ -112,3 +112,16 @@ class MsgProvider:
         module = importlib.import_module(module_name)
         source = getattr(module, instance)
         return self.__init__(source, chat_id)
+
+
+def find_bot(path: str) -> Bot:
+    """
+    Route must follow this pattern:
+    `module.submodule: sender_instance`
+    """
+    import importlib
+
+    module_name, instance = path.split(":", 1)
+    module = importlib.import_module(module_name)
+    bot = getattr(module, instance)
+    return bot

@@ -12,11 +12,15 @@ from app.bot import bot
 from app.db import Session, models
 from app.files import collect_bdays, get_file_from_yadisk
 from app.scheduler import add_job
-from app.utils import MsgProvider, set_inline_button, update_envar
+from app.utils import (
+    MsgProvider,
+    get_current_date,
+    set_inline_button,
+    update_envar,
+)
+from app.yandex_disk import disk
 
 logger = logging.getLogger(__name__)
-
-disk = yadisk_async.YaDisk(token=settings.YADISK_TOKEN)
 
 
 def is_file_fresh(path: pathlib.PosixPath) -> bool:
@@ -87,9 +91,11 @@ async def cmd_add_chat_to_bdays_mailing(message: types.Message):
     Currently days and time are unavailable to choose.
     Need to implement tihs later.
     """
+
     chat_id = message.chat.id
+    func = "app.file_parser:dispatch_message_to_chat"
     try:
-        job = add_job(chat_id)
+        job = add_job(func, chat_id)
     except Exception as e:
         logger.error(f"Job error: {e}")
         await message.answer(

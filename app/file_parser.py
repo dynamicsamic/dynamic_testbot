@@ -1,3 +1,4 @@
+import asyncio
 import datetime as dt
 import logging
 import operator
@@ -8,12 +9,14 @@ import numpy as np
 import pandas as pd
 from aiogram import Bot
 from aiohttp import ClientSession
-from yadisk_async import YaDisk
 from yadisk_async.exceptions import UnauthorizedError
+
+from app.yandex_disk import download_file_from_yadisk
 
 from . import settings
 from .utils import (
     MsgProvider,
+    find_bot,
     get_current_date,
     set_inline_button,
     timestamp_to_datetime_string,
@@ -21,30 +24,6 @@ from .utils import (
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
-
-
-async def download_file_from_yadisk(
-    disk: YaDisk,
-    source_path: str,
-    output_file: str,
-) -> bool:
-    """
-    Asynchronously download file from Yandex.Disk.
-    In case of failure send a message to request starter.
-    """
-    downloaded = False
-    try:
-        await disk.download(source_path, output_file)
-    except Exception as e:
-        error_message = f"YaDisk file download FAILURE!: {e}"
-        logger.error(error_message)
-        raise
-    else:
-        downloaded = True
-        logger.info("YaDisk file download SUCCESS!")
-    finally:
-        await disk.close()
-        return downloaded
 
 
 def excel_to_pd_dataframe(
@@ -159,7 +138,6 @@ def collect_bdays(
     today_notifications = []
     future_notifications = []
     result = []
-    try:
     df = excel_to_pd_dataframe(path_to_excel, columns)
     logger.info("Excel convert to dataframe [SUCCESS]")
     extracted_cols = preprocess_pd_dataframe(df, validation_schema, columns)
@@ -209,11 +187,18 @@ def collect_bdays(
 preloaded_data = []
 
 
-async def preload_mailing_notifications(bot: Bot, session: ClientSession):
-    today = await get_current_date(session, settings.TIME_API_URL)
+async def preload_mailing_notifications(
+    bot: Bot,  # session: ClientSession
+) -> None:
+    async with ClientSession() as session:
+        today = await get_current_date(session, settings.TIME_API_URL)
+    # today = await get_current_date(session, settings.TIME_API_URL)
+    output_file = settings.BASE_DIR / settings.OUTPUT_FILE_NAME
     downloaded_from_yadisk = False
     try:
-        downloaded_from_yadisk = await download_file_from_yadisk()
+        downloaded_from_yadisk = await download_file_from_yadisk(
+            settings.YADISK_FILEPATH, output_file.as_posix()
+        )
     except Exception as e:
         if isinstance(e, UnauthorizedError):
             kbd = set_inline_button(
@@ -236,8 +221,7 @@ async def preload_mailing_notifications(bot: Bot, session: ClientSession):
         else:
             logger.error(f"Unexpected YaDisk error: {e}")
 
-    output_file = settings.BASE_DIR / settings.OUTPUT_FILE_NAME
-    if not download_file_from_yadisk:
+    if not downloaded_from_yadisk:
         if output_file.is_file():
             updated_at = timestamp_to_datetime_string(
                 output_file.stat().st_mtime
@@ -259,7 +243,32 @@ async def preload_mailing_notifications(bot: Bot, session: ClientSession):
                     "Обратитесь к разработчику."
                 ),
             )
-            logger.error("No file with bdays found!")
+            logger.critical("No file with bdays found!")
             return
-    notifications = await collect_bdays()
+    try:
+        notifications = collect_bdays(
+            output_file.as_posix(), today, settings.COLUMNS, 3
+        )
+    except Exception as e:
+        await bot.send_message(
+            settings.BOT_MANAGER_TELEGRAM_ID,
+            "При обработке файла с перечнем дней рождения произошла ошибка. Обратитесь к разработчику.",
+        )
+        logger.critical(f"File processing failed with error: {e}")
+        return
     preloaded_data.append(*notifications)
+
+
+async def run_preload(bot_path: str) -> None:
+    await preload_mailing_notifications(find_bot(bot_path))
+
+
+async def dispatch_message_to_chat(
+    bot_path: str, chat_id: int, **kwargs
+) -> None:
+    bot = find_bot(bot_path)
+    if not preloaded_data:
+        await preload_mailing_notifications(bot, **kwargs)
+    await asyncio.sleep(10)
+    for message in preloaded_data:
+        await bot.send_message(chat_id, message)
