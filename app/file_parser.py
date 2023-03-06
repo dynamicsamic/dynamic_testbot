@@ -11,7 +11,7 @@ from aiogram import Bot
 from aiohttp import ClientSession
 from yadisk_async.exceptions import UnauthorizedError
 
-from app.yandex_disk import download_file_from_yadisk
+from app.yandex_disk import disk, download_file_from_yadisk
 
 from . import settings
 from .utils import (
@@ -31,7 +31,9 @@ def excel_to_pd_dataframe(
 ) -> pd.DataFrame:
     """Translate excel file into pandas dataframe."""
     try:
-        df = pd.DataFrame(pd.read_excel(file_path), columns=columns)
+        df = pd.DataFrame(
+            pd.read_excel(file_path, engine="openpyxl"), columns=columns
+        )
     except FileNotFoundError as e:
         logger.error(f"Pandas could not find bday file: {e}")
         raise
@@ -175,7 +177,7 @@ def collect_bdays(
         result.append(
             f"#деньрождения ближайшие {settings.FUTURE_SCOPE} дня: {''.join(future_notifications)}"
         )
-        logger.info("FUTURE BDAYS message sent successfuly")
+        logger.info("FUTURE BDAYS message sent successfuly")  # переделать логи
     if not (today_notifications or future_notifications):
         result.append(
             f"на сегодня и ближайшие {settings.FUTURE_SCOPE} дня #деньрождения не найдены."
@@ -188,40 +190,40 @@ preloaded_data = []
 
 
 async def preload_mailing_notifications(
-    bot: Bot,  # session: ClientSession
+    bot: Bot, check_yadisk_token: bool = True  # session: ClientSession
 ) -> None:
     async with ClientSession() as session:
         today = await get_current_date(session, settings.TIME_API_URL)
-    # today = await get_current_date(session, settings.TIME_API_URL)
-    output_file = settings.BASE_DIR / settings.OUTPUT_FILE_NAME
-    downloaded_from_yadisk = False
-    try:
-        downloaded_from_yadisk = await download_file_from_yadisk(
-            settings.YADISK_FILEPATH, output_file.as_posix()
-        )
-    except Exception as e:
-        if isinstance(e, UnauthorizedError):
-            kbd = set_inline_button(
-                text="Получить код", callback_data="confirm_code"
-            )
-            await bot.send_message(
-                settings.BOT_MANAGER_TELEGRAM_ID,
-                "Токен безопасности Яндекс Диска устарел.\n"
-                "Для получения кода подвтерждения нажмите на кнопку ниже и "
-                "перейдите по ссылке.\nВ открывшейся вкладке браузера войдите в "
-                "Яндекс аккаунт, на котором хранится Excel файл с данными о днях "
-                "рождениях. После этого вы автоматически перейдете на страницу "
-                "получения кода подвтерждения. Скопируйте этот код и отправьте его "
-                "боту с командой /code.",
-                reply_markup=kbd,
-            )
-            logger.error(
-                "Could not download file from YaDisk - token expired!"
-            )
-        else:
-            logger.error(f"Unexpected YaDisk error: {e}")
 
-    if not downloaded_from_yadisk:
+    global preloaded_data
+    warning_message = None
+    # preloaded_data.clear()
+    output_file = settings.BASE_DIR / settings.OUTPUT_FILE_NAME
+    # downloaded_from_yadisk = False
+    # if not await disk.check_token():
+    #     kbd = set_inline_button(
+    #         text="Получить код", callback_data="confirm_code"
+    #     )
+    #     await bot.send_message(
+    #         settings.BOT_MANAGER_TELEGRAM_ID,
+    #         "Токен безопасности Яндекс Диска устарел.\n"
+    #         "Для получения кода подвтерждения нажмите на кнопку ниже и "
+    #         "перейдите по ссылке.\nВ открывшейся вкладке браузера войдите в "
+    #         "Яндекс аккаунт, на котором хранится Excel файл с данными о днях "
+    #         "рождениях. После этого вы автоматически перейдете на страницу "
+    #         "получения кода подвтерждения. Скопируйте этот код и отправьте его "
+    #         "боту с командой /code.",
+    #         reply_markup=kbd,
+    #     )
+    #     logger.error("Could not download file from YaDisk - token expired!")
+    if check_yadisk_token:
+        try:
+            await download_file_from_yadisk(
+                settings.YADISK_FILEPATH, output_file.as_posix()
+            )
+        except Exception as e:
+            logger.error(f"Unexpected YaDisk error: {e}")
+    else:
         if output_file.is_file():
             updated_at = timestamp_to_datetime_string(
                 output_file.stat().st_mtime
@@ -230,7 +232,6 @@ async def preload_mailing_notifications(
                 "Загрузка актуальных данных в настоящее время невозможна."
                 f"Данные актуальны на: {updated_at}"
             )
-            preloaded_data.append(warning_message)
             logger.warning(
                 f"File with bdays was not updated. Used older version: {updated_at}"
             )
@@ -256,19 +257,40 @@ async def preload_mailing_notifications(
         )
         logger.critical(f"File processing failed with error: {e}")
         return
-    preloaded_data.append(*notifications)
+
+    preloaded_data.clear()  # clear all previous notifications if we have new ones
+    if warning_message:
+        preloaded_data.append(warning_message)
+    preloaded_data += notifications
 
 
 async def run_preload(bot_path: str) -> None:
-    await preload_mailing_notifications(find_bot(bot_path))
-
-
-async def dispatch_message_to_chat(
-    bot_path: str, chat_id: int, **kwargs
-) -> None:
     bot = find_bot(bot_path)
+    if not (check_yadisk_token := await disk.check_token()):
+        kbd = set_inline_button(
+            text="Получить код", callback_data="confirm_code"
+        )
+        await bot.send_message(
+            settings.BOT_MANAGER_TELEGRAM_ID,
+            "Токен безопасности Яндекс Диска устарел.\n"
+            "Для получения кода подвтерждения нажмите на кнопку ниже и "
+            "перейдите по ссылке.\nВ открывшейся вкладке браузера войдите в "
+            "Яндекс аккаунт, на котором хранится Excel файл с данными о днях "
+            "рождениях. После этого вы автоматически перейдете на страницу "
+            "получения кода подвтерждения. Скопируйте этот код и отправьте его "
+            "боту с командой /code.",
+            reply_markup=kbd,
+        )
+        logger.error("Could not download file from YaDisk - token expired!")
+    await preload_mailing_notifications(bot, check_yadisk_token)
+
+
+async def dispatch_message_to_chat(bot_path: str, chat_id: int) -> None:
     if not preloaded_data:
-        await preload_mailing_notifications(bot, **kwargs)
-    await asyncio.sleep(10)
+        await run_preload(bot_path)
+
+    await asyncio.sleep(5)
+
+    bot = find_bot(bot_path)
     for message in preloaded_data:
         await bot.send_message(chat_id, message)

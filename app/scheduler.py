@@ -43,10 +43,13 @@ def add_job(f: Callable | str, chat_id: int, **func_kwargs) -> Job:
 def add_preload_job():
     return Scheduler.add_job(
         "app.file_parser:run_preload",
-        "date",
+        "cron",
+        day_of_week="mon-sun",
+        hour=0,
+        minute=7,
         kwargs={"bot_path": "app.bot:bot"},
         replace_existing=True,
-        id=1,
+        id="1",
     )
 
 

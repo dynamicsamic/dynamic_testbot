@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from app import settings
 from app.db import Session, db_engine, events, models
 from app.handlers import register_bdays_handlers, register_common_handlers
-from app.scheduler import Scheduler, load_jobs
+from app.scheduler import Scheduler, add_preload_job
 
 fileConfig(fname="log_config.conf", disable_existing_loggers=False)
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ async def on_startup(dp: Dispatcher):
     models.Base.metadata.create_all(db_engine)
     # load_jobs(Session)
     Scheduler.print_jobs()
+    add_preload_job()
     Scheduler.start()
     await set_bot_commands(dp.bot)
 
