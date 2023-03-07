@@ -125,3 +125,23 @@ def find_bot(path: str) -> Bot:
     module = importlib.import_module(module_name)
     bot = getattr(module, instance)
     return bot
+
+
+def get_bot_path() -> str:
+    local_path, bot_name = settings.BOT_INSTANCE.split(".")
+    path_to_bot = f'{settings.APP_NAME}{".".join(local_path)}:{bot_name}'
+    return path_to_bot
+
+
+def get_bot() -> Bot:
+    import importlib
+
+    path_to_bot = get_bot_path()
+    module_name, instance = path_to_bot.split(":", 1)
+    try:
+        module = importlib.import_module(module_name)
+    except ImportError:
+        raise
+    # maybe need to traverse files and find string 'Bot(...)'
+    bot = getattr(module, instance)
+    return bot

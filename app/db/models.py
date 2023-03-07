@@ -1,7 +1,7 @@
 import datetime as dt
 from typing import Self
 
-from sqlalchemy import Column, DateTime, Integer, select
+from sqlalchemy import Column, Date, DateTime, Integer, String, select
 from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
@@ -10,6 +10,17 @@ from app import settings
 
 class Base(DeclarativeBase):
     pass
+
+
+class Birthday(Base):
+    __tablename__ = "birthday"
+
+    id = Column(Integer)
+    name = Column(String(length=128), primary_key=True)
+    date = Column(Date, primary_key=True)
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({self.name}, {self.date})"
 
 
 class TelegramChat(Base):

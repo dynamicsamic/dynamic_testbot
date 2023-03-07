@@ -4,7 +4,9 @@ from decouple import config
 from pytz import timezone
 
 BASE_DIR = Path(__name__).resolve().parent
+APP_NAME = "app"
 
+BOT_INSTANCE = "bot.bot"
 BOT_TOKEN = config("BOT_TOKEN")
 BOT_MANAGER_TELEGRAM_ID = config("BOT_MANAGER_TELEGRAM_ID")
 

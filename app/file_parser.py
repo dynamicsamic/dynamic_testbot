@@ -17,6 +17,7 @@ from . import settings
 from .utils import (
     MsgProvider,
     find_bot,
+    get_bot,
     get_current_date,
     set_inline_button,
     timestamp_to_datetime_string,
@@ -172,21 +173,18 @@ def collect_bdays(
             )
     if today_notifications:
         result.append(f"#деньрождения сегодня {''.join(today_notifications)}")
-        logger.info("TODAY BDAYS message sent successfuly")
+        # logger.info("TODAY BDAYS message sent successfuly")
     if future_notifications:
         result.append(
             f"#деньрождения ближайшие {settings.FUTURE_SCOPE} дня: {''.join(future_notifications)}"
         )
-        logger.info("FUTURE BDAYS message sent successfuly")  # переделать логи
+        # logger.info("FUTURE BDAYS message sent successfuly")  # переделать логи
     if not (today_notifications or future_notifications):
         result.append(
             f"на сегодня и ближайшие {settings.FUTURE_SCOPE} дня #деньрождения не найдены."
         )
-        logger.info("NO BDAYS collected")
+        # logger.info("NO BDAYS collected")
     return result
-
-
-preloaded_data = []
 
 
 async def preload_mailing_notifications(
@@ -293,4 +291,87 @@ async def dispatch_message_to_chat(bot_path: str, chat_id: int) -> None:
 
     bot = find_bot(bot_path)
     for message in preloaded_data:
+        await bot.send_message(chat_id, message)
+
+
+from sqlalchemy.exc import SQLAlchemyError
+
+
+async def update_db_from_yadisk():
+    try:
+        await download_file_from_yadisk(
+            settings.YADISK_FILEPATH, output_file.as_posix()
+        )
+    except Exception as e:
+        logger.error(f"Unexpected YaDisk error: {e}")
+        raise
+    df = excel_to_pd_dataframe()
+    extracted_cols = preprocess_pd_dataframe(df)
+    with Session() as session:
+        for row in extracted_cols:
+            day, month, name = row
+            month = month.lower().strip()
+            name = name.strip()
+            try:
+                birth_date = dt.date(today.year, to_int_month(month), day)
+            except TypeError as e:
+                logger.error(
+                    f"date conversion failure: {e}; " f"scipped row for {name}"
+                )
+                continue
+            bday = Birthday(name=name, date=birth_date)
+            session.add(bday)
+            try:
+                session.commit()
+            except SQLAlchemyError as e:
+                logger.error(
+                    f"Insert birthday instance to DB error: {e}; "
+                    f"Insert skipped for {name}"
+                )
+
+
+class NotificationStorage(dict):
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}({super().__repr__()})"
+
+
+Storage = NotificationStorage()
+bot = get_bot()
+
+
+async def preload_notifications():
+    yadisk_token_valid = await disk.check_token()
+    bot = find_bot()
+    if not yadisk_token_valid:
+        await bot.send_message(
+            settings.BOT_MANAGER_TELEGRAM_ID, text="callback"
+        )
+        logger.warning("YaDisk token expired => file download skipped.")
+    else:
+        try:
+            await update_db_from_yadisk()
+        except Exception as e:
+            await bot.send_message(
+                settings.BOT_MANAGER_TELEGRAM_ID, text="Unexpected error"
+            )
+            logger.critical(f"Database update failure: {e}")
+            Storage.setdefault(
+                "warning",
+                "Не удалось обновить базу данных. данные актуальны на ...",
+            )
+        else:
+            Storage.pop("warning", None)
+    with Session() as session:
+        today_birthdays = Birthday.today()
+        today_message = get_formatted_bday_message(today_birthdays)
+        Storage.setdefault("today", today_message)
+
+        future_birthdays = Birthday.future()
+        future_message = get_formatted_bday_message(future_birthdays)
+        Storage.setdefault("future", future_message)
+
+
+async def dispatch_message_to_chat2(bot_path: str, chat_id: int) -> None:
+    bot = find_bot(bot_path)
+    for message in Storage.values():
         await bot.send_message(chat_id, message)
