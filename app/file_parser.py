@@ -11,6 +11,7 @@ from aiogram import Bot
 from aiohttp import ClientSession
 from yadisk_async.exceptions import UnauthorizedError
 
+from app.db.models import Birthday
 from app.yandex_disk import disk, download_file_from_yadisk
 
 from . import settings
@@ -362,11 +363,11 @@ async def preload_notifications():
         else:
             Storage.pop("warning", None)
     with Session() as session:
-        today_birthdays = Birthday.today()
+        today_birthdays = Birthday.today(session)
         today_message = get_formatted_bday_message(today_birthdays)
         Storage.setdefault("today", today_message)
 
-        future_birthdays = Birthday.future()
+        future_birthdays = Birthday.future(session)
         future_message = get_formatted_bday_message(future_birthdays)
         Storage.setdefault("future", future_message)
 
