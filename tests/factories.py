@@ -4,9 +4,7 @@ import factory
 
 from app.db import models
 
-
-def today():
-    return dt.date.today()
+from .common import today
 
 
 class BirthdayFactory(factory.alchemy.SQLAlchemyModelFactory):
@@ -20,3 +18,11 @@ class BirthdayFactory(factory.alchemy.SQLAlchemyModelFactory):
         start_date=today() - dt.timedelta(days=1),
         end_date=today() + dt.timedelta(days=4),
     )
+
+    @classmethod
+    def create_today_birthdays(cls, num: int) -> list[models.Birthday]:
+        cls.create_batch(num, date=today())
+
+    @classmethod
+    def create_future_birthdays(cls, num: int) -> list[models.Birthday]:
+        cls.create_batch(num, date=today() + dt.timedelta(days=4))

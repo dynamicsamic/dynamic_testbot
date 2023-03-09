@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, scoped_session, sessionmaker
 
 from app.db import models
 
+from .common import constants
 from .factories import BirthdayFactory
 
 IN_MEMORY_TEST_DB_URL = "sqlite://"
@@ -36,20 +37,10 @@ def db_session(engine, create_tables):
     connection.close()
 
 
-def create_today_birthdays(num: int):
-    BirthdayFactory.create_batch(num, date=dt.date.today())
-
-
-def create_tomorrow_birthdays(num: int):
-    BirthdayFactory.create_batch(
-        num, date=(dt.date.today() + dt.timedelta(days=1))
-    )
-
-
 @pytest.fixture
 def create_test_data(db_session):
-    """Create 5 test Birthday instances."""
+    """Create test instances for Birthday model."""
     BirthdayFactory._meta.sqlalchemy_session = db_session
-    create_today_birthdays(3)
-    create_tomorrow_birthdays(3)
-    BirthdayFactory.create_batch(3)
+    BirthdayFactory.create_today_birthdays(constants["TODAY_BDAY_NUM"])
+    BirthdayFactory.create_future_birthdays(constants["FUTURE_BDAY_NUM"])
+    db_session.commit()
