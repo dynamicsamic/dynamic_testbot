@@ -1,78 +1,69 @@
 import datetime as dt
-from typing import Any, Self
+from typing import Any, Self, Type
 
 from sqlalchemy import Column, Date, DateTime, Integer, String, func, select
+from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.engine.result import ScalarResult
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 from app import settings
-from tests.common import today
+from tests.common import today as today_
 
 
 class Base(DeclarativeBase):
     pass
 
 
-from sqlalchemy.dialects.sqlite import insert
+class QueryMixinBase:
+    @classmethod
+    def get(cls, session: Session, name: str) -> Self:
+        """Fetch an instance of `model` with given `name` from db."""
+        return session.scalar(select(cls).where(cls.name == name))
+
+    @classmethod
+    def all(cls, session: Session) -> list[Self]:
+        """Fetch all instances of `model` from db."""
+        return session.scalars(select(cls)).all()
+
+    @classmethod
+    def count(cls, session: Session) -> int:
+        """Count number of instances of `model` recorded in db."""
+        return session.scalars(select(func.count(cls.name))).one()
 
 
-class QueryManagerBase:
-    def __init__(self, model: Base) -> None:
-        self.model = model
+class BirthdayQueryMixin(QueryMixinBase):
+    @classmethod
+    def last(cls, session: Session) -> Self:
+        """Fetch last added instance of `model` from db."""
+        return session.scalars(select(cls).order_by(cls.date.desc())).limit(1)
 
-    def get(self, session, name: str) -> Base:
-        """Fetch an instance of `self.model` with given `name` from db."""
-        return session.scalar(
-            select(self.model).where(self.model.name == name)
-        )
+    @classmethod
+    def first(cls, session: Session) -> Self:
+        """Fetch first added instance of `model` from db."""
+        return session.scalars(select(cls).order_by(cls.date)).limit(1)
 
-    def all(self, session) -> list[Base]:
-        """Fetch all instances of `self.model` from db."""
-        return session.scalars(select(self.model)).all()
-
-    def count(self, session) -> int:
-        """Count number of instances of `self.model` recorded in db."""
-        return session.scalars(select(func.count(self.model.name))).one()
-
-
-class BirthdayQueryManager(QueryManagerBase):
-    def last(self, session) -> Base:
-        """Fetch last added instance of `self.model` from db."""
-        return session.scalars(
-            select(self.model).order_by(self.model.date.desc())
-        ).limit(1)
-
-    def first(self, session) -> Base:
-        """Fetch first added instance of `self.model` from db."""
-        return session.scalars(
-            select(self.model).order_by(self.model.date)
-        ).limit(1)
-
-    def today(self, session) -> list[Base]:
-        """Fetch all instances of `self.model` from db
+    @classmethod
+    def today(cls, session: Session, today: dt.date = None) -> list[Self]:
+        """Fetch all instances of `model` from db
         which have `date` attribute equal to today."""
-        return session.scalars(
-            select(self.model).where(self.model.date == today())
-        ).all()
+        today = today or today_()
+        return session.scalars(select(cls).where(cls.date == today)).all()
 
-    def future(self, session, delta: int = 3) -> list[Base]:
-        """Fetch all instances of `self.model` from db
+    @classmethod
+    def future(
+        cls, session: Session, today: dt.date = None, delta: int = 3
+    ) -> list[Self]:
+        """Fetch all instances of `model` from db
         which have `date` attribute greater than today."""
+        today = today or today_()
         return session.scalars(
-            select(self.model).filter(
-                self.model.date.between(today(), dt.timedelta(days=delta))
+            select(cls).filter(
+                cls.date.between(today, dt.timedelta(days=delta))
             )
         )
 
 
-class Mixin:
-    @classmethod
-    def get(cls, session, name: str) -> Base:
-        """Fetch an instance of `self.model` with given `name` from db."""
-        return session.scalar(select(cls).where(cls.name == name))
-
-
-class Birthday(Base, Mixin):
+class Birthday(Base, BirthdayQueryMixin):
     __tablename__ = "birthday"
 
     name = Column(String(length=128), unique=True, primary_key=True)
@@ -80,11 +71,6 @@ class Birthday(Base, Mixin):
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}({self.name}, {self.date})"
-
-    @classmethod
-    def today(cls, session: Session, today: dt.date) -> ScalarResult[Self]:
-        """Return birthdays for today."""
-        return session.scalars(select(cls).where(cls.date == today))
 
 
 class TelegramChat(Base):

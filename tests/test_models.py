@@ -9,15 +9,26 @@ from .common import constants, today
 from .fixtures import create_tables, create_test_data, db_session, engine
 
 
+def test_birthday_get_method_with_valid_name_returns_instance(
+    db_session, create_test_data
+):
+    valid_name = "name0"
+    birthday = models.Birthday.get(db_session, valid_name)
+    assert isinstance(birthday, models.Birthday)
+
+
+def test_birthday_get_method_with_invalid_name_returns_none(
+    db_session, create_test_data
+):
+    invalid_name = "invalid"
+    birthday = models.Birthday.get(db_session, invalid_name)
+    assert birthday is None
+
+
 def test_birthday_today_method_returns_expected_num(
     db_session, create_test_data
 ):
-    today_birthdays = models.Birthday.today(db_session, today()).all()
-    # print(dir(models.Base.registry))
-    # print(models.Base.metadata.tables)
-    # print(type(models.Base.metadata.tables.get("birthday")))
-    # print(type(models.Birthday))
-    print(models.Birthday.get(db_session, "name0"))
+    today_birthdays = models.Birthday.today(db_session)
     assert len(today_birthdays) == constants["TODAY_BDAY_NUM"]
 
 
