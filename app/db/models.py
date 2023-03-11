@@ -35,32 +35,66 @@ class BirthdayQueryMixin(QueryMixinBase):
     @classmethod
     def last(cls, session: Session) -> Self:
         """Fetch last added instance of `model` from db."""
-        return session.scalars(select(cls).order_by(cls.date.desc())).limit(1)
+        return session.scalar(select(cls).order_by(cls.date.desc()).limit(1))
 
     @classmethod
     def first(cls, session: Session) -> Self:
         """Fetch first added instance of `model` from db."""
-        return session.scalars(select(cls).order_by(cls.date)).limit(1)
+        return session.scalar(select(cls).order_by(cls.date).limit(1))
+
+    @classmethod
+    def between(
+        cls, session: Session, start: dt.date | str, end: dt.date | str
+    ) -> list[Self]:
+        """
+        Fetch all instances of `model` which have
+        `date` attribute between given date borders.
+
+        Arguments for `start` and `end` may be passed as strings.
+        In this case arguments must follow ISO format `yyyy-mm-dd'.
+        If not, borders will be replaced with current year period.
+        """
+        if isinstance(start, str):
+            try:
+                start = dt.date.fromisoformat(start)
+            except ValueError:
+                start = dt.date.fromisoformat(f"{today_().year}-01-01")
+        if isinstance(end, str):
+            try:
+                end = dt.date.fromisoformat(end)
+            except ValueError:
+                end = dt.date.fromisoformat(f"{today_().year}-12-31")
+
+        return session.scalars(
+            select(cls).filter(cls.date.between(start, end))
+        ).all()
 
     @classmethod
     def today(cls, session: Session, today: dt.date = None) -> list[Self]:
-        """Fetch all instances of `model` from db
-        which have `date` attribute equal to today."""
+        """
+        Fetch all instances of `model` from db
+        which have `date` attribute equal to today.
+        """
         today = today or today_()
-        return session.scalars(select(cls).where(cls.date == today)).all()
+        return cls.between(session, today, today)
 
     @classmethod
     def future(
         cls, session: Session, today: dt.date = None, delta: int = 3
     ) -> list[Self]:
         """Fetch all instances of `model` from db
+        which have `date` attribute between tomorrow and delta."""
+        today = today or today_()
+        start = today + dt.timedelta(days=1)
+        end = today + dt.timedelta(days=delta)
+        return cls.between(session, start, end)
+
+    @classmethod
+    def future_max(cls, session: Session, today: dt.date = None) -> list[Self]:
+        """Fetch all instances of `model` from db
         which have `date` attribute greater than today."""
         today = today or today_()
-        return session.scalars(
-            select(cls).filter(
-                cls.date.between(today, dt.timedelta(days=delta))
-            )
-        )
+        return session.scalars(select(cls).filter(cls.date > today))
 
 
 class Birthday(Base, BirthdayQueryMixin):

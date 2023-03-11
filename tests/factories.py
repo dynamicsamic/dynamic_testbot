@@ -6,6 +6,12 @@ from app.db import models
 
 from .common import today
 
+fake_future_dates = factory.Faker(
+    "date_between",
+    start_date=today() + dt.timedelta(days=1),
+    end_date=today() + dt.timedelta(days=4),
+)
+
 
 class BirthdayFactory(factory.alchemy.SQLAlchemyModelFactory):
     class Meta:
@@ -25,4 +31,4 @@ class BirthdayFactory(factory.alchemy.SQLAlchemyModelFactory):
 
     @classmethod
     def create_future_birthdays(cls, num: int) -> list[models.Birthday]:
-        cls.create_batch(num, date=today() + dt.timedelta(days=4))
+        cls.create_batch(num, date=fake_future_dates)
