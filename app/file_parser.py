@@ -11,6 +11,7 @@ from aiogram import Bot
 from aiohttp import ClientSession
 from yadisk_async.exceptions import UnauthorizedError
 
+from app.db import get_session
 from app.db.models import Birthday
 from app.yandex_disk import disk, download_file_from_yadisk
 
@@ -306,29 +307,34 @@ async def update_db_from_yadisk():
     except Exception as e:
         logger.error(f"Unexpected YaDisk error: {e}")
         raise
+
+    birthdays = []
     df = excel_to_pd_dataframe()
     extracted_cols = preprocess_pd_dataframe(df)
-    with Session() as session:
-        for row in extracted_cols:
-            day, month, name = row
-            month = month.lower().strip()
-            name = name.strip()
-            try:
-                birth_date = dt.date(today.year, to_int_month(month), day)
-            except TypeError as e:
-                logger.error(
-                    f"date conversion failure: {e}; " f"scipped row for {name}"
-                )
-                continue
-            bday = Birthday(name=name, date=birth_date)
-            session.add(bday)
-            try:
-                session.commit()
-            except SQLAlchemyError as e:
-                logger.error(
-                    f"Insert birthday instance to DB error: {e}; "
-                    f"Insert skipped for {name}"
-                )
+    for row in extracted_cols:
+        day, month, name = row
+        month = month.lower().strip()
+        name = name.strip()
+        try:
+            birth_date = dt.date(today.year, to_int_month(month), day)
+        except TypeError as e:
+            logger.error(
+                f"date conversion failure: {e}; " f"scipped row for {name}"
+            )
+            continue
+        birthdays.append(Birthday(name=name, date=birth_date))
+    with get_session() as session:
+        Birthday.operations.bulk_upsert(session, birthdays)
+        session.commit()
+        # bday = Birthday(name=name, date=birth_date)
+        # session.add(bday)
+        # try:
+        #     session.commit()
+        # except SQLAlchemyError as e:
+        #     logger.error(
+        #         f"Insert birthday instance to DB error: {e}; "
+        #         f"Insert skipped for {name}"
+        #     )
 
 
 class NotificationStorage(dict):
@@ -362,12 +368,12 @@ async def preload_notifications():
             )
         else:
             Storage.pop("warning", None)
-    with Session() as session:
-        today_birthdays = Birthday.today(session)
+    with get_session() as session:
+        today_birthdays = Birthday.queries.today(session)
         today_message = get_formatted_bday_message(today_birthdays)
         Storage.setdefault("today", today_message)
 
-        future_birthdays = Birthday.future(session)
+        future_birthdays = Birthday.queries.future(session)
         future_message = get_formatted_bday_message(future_birthdays)
         Storage.setdefault("future", future_message)
 
