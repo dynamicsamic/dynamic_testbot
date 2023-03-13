@@ -1,5 +1,6 @@
 import datetime as dt
-from typing import Any, Self, Sequence, Type
+from functools import cache
+from typing import Any, Self, Sequence, Type, TypeVar
 
 from sqlalchemy import Column, Date, DateTime, Integer, String, func, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
@@ -14,124 +15,46 @@ class Base(DeclarativeBase):
     pass
 
 
-class QueryMixinBase:
-    @classmethod
-    def get(cls, session: Session, name: str) -> Self:
-        """Fetch an instance of `model` with given `name` from db."""
-        return session.scalar(select(cls).where(cls.name == name))
-
-    @classmethod
-    def all(cls, session: Session) -> list[Self]:
-        """Fetch all instances of `model` from db."""
-        return session.scalars(select(cls)).all()
-
-    @classmethod
-    def count(cls, session: Session) -> int:
-        """Count number of instances of `model` recorded in db."""
-        return session.scalars(select(func.count(cls.name))).one()
-
-
-class BirthdayQueryMixin(QueryMixinBase):
-    @classmethod
-    def last(cls, session: Session) -> Self:
-        """Fetch last added instance of `model` from db."""
-        return session.scalar(select(cls).order_by(cls.date.desc()).limit(1))
-
-    @classmethod
-    def first(cls, session: Session) -> Self:
-        """Fetch first added instance of `model` from db."""
-        return session.scalar(select(cls).order_by(cls.date).limit(1))
-
-    @classmethod
-    def between(
-        cls, session: Session, start: dt.date | str, end: dt.date | str
-    ) -> list[Self]:
-        """
-        Fetch all instances of `model` which have
-        `date` attribute between given date borders.
-
-        Arguments for `start` and `end` may be passed as strings.
-        In this case arguments must follow ISO format `yyyy-mm-dd'.
-        If not, borders will be replaced with current year period.
-        """
-        if isinstance(start, str):
-            try:
-                start = dt.date.fromisoformat(start)
-            except ValueError:
-                start = dt.date.fromisoformat(f"{today_().year}-01-01")
-        if isinstance(end, str):
-            try:
-                end = dt.date.fromisoformat(end)
-            except ValueError:
-                end = dt.date.fromisoformat(f"{today_().year}-12-31")
-
-        return session.scalars(
-            select(cls).filter(cls.date.between(start, end))
-        ).all()
-
-    @classmethod
-    def today(cls, session: Session, today: dt.date = None) -> list[Self]:
-        """
-        Fetch all instances of `model` from db
-        which have `date` attribute equal to today.
-        """
-        today = today or today_()
-        return cls.between(session, today, today)
-
-    @classmethod
-    def future(
-        cls, session: Session, today: dt.date = None, delta: int = 3
-    ) -> list[Self]:
-        """Fetch all instances of `model` from db
-        which have `date` attribute between tomorrow and delta."""
-        today = today or today_()
-        start = today + dt.timedelta(days=1)
-        end = today + dt.timedelta(days=delta)
-        return cls.between(session, start, end)
-
-    @classmethod
-    def future_max(cls, session: Session, today: dt.date = None) -> list[Self]:
-        """Fetch all instances of `model` from db
-        which have `date` attribute greater than today."""
-        today = today or today_()
-        return session.scalars(select(cls).filter(cls.date > today)).all()
-
-
 class QueryManagerBase:
+    """
+    Class for performing data querying operations
+    such as get_one, get_all etc.
+    """
+
     def __init__(self, model: Base) -> None:
         self.model = model
 
-    def get(self, session: Session, name: str) -> Self:
-        """Fetch an instance of `model` with given `name` from db."""
+    def get(self, session: Session, name: str) -> Type[Base]:
+        """Fetch an instance of `model` with given `name`."""
         return session.scalar(
             select(self.model).where(self.model.name == name)
         )
 
-    def all(self, session: Session) -> list[Self]:
-        """Fetch all instances of `model` from db."""
+    def all(self, session: Session) -> list[Type[Base]]:
+        """Fetch all instances of `model`."""
         return session.scalars(select(self.model)).all()
 
     def count(self, session: Session) -> int:
         """Count number of instances of `model` recorded in db."""
-        return session.scalars(select(func.count(self.model.name))).one()
+        return session.scalar(select(func.count(self.model.name)))
 
 
 class BirthdayQueryManager(QueryManagerBase):
-    def last(self, session: Session) -> Self:
-        """Fetch last added instance of `model` from db."""
+    def last(self, session: Session) -> Type[Base]:
+        """Fetch last added instance of `model`."""
         return session.scalar(
             select(self.model).order_by(self.model.date.desc()).limit(1)
         )
 
-    def first(self, session: Session) -> Self:
-        """Fetch first added instance of `model` from db."""
+    def first(self, session: Session) -> Type[Base]:
+        """Fetch first added instance of `model`."""
         return session.scalar(
             select(self.model).order_by(self.model.date).limit(1)
         )
 
     def between(
         self, session: Session, start: dt.date | str, end: dt.date | str
-    ) -> list[Self]:
+    ) -> list[Type[Base]]:
         """
         Fetch all instances of `model` which have
         `date` attribute between given date borders.
@@ -155,17 +78,19 @@ class BirthdayQueryManager(QueryManagerBase):
             select(self.model).filter(self.model.date.between(start, end))
         ).all()
 
-    def today(self, session: Session, today: dt.date = None) -> list[Self]:
+    def today(
+        self, session: Session, today: dt.date = None
+    ) -> list[Type[Base]]:
         """
-        Fetch all instances of `model` from db
-        which have `date` attribute equal to today.
+        Fetch all instances of `model` which have
+        `date` attribute equal to today.
         """
         today = today or today_()
         return self.between(session, today, today)
 
     def future(
         self, session: Session, today: dt.date = None, delta: int = 3
-    ) -> list[Self]:
+    ) -> list[Type[Base]]:
         """Fetch all instances of `model` from db
         which have `date` attribute between tomorrow and delta."""
         today = today or today_()
@@ -175,7 +100,7 @@ class BirthdayQueryManager(QueryManagerBase):
 
     def future_all(
         self, session: Session, today: dt.date = None
-    ) -> list[Self]:
+    ) -> list[Type[Base]]:
         """Fetch all instances of `model` from db
         which have `date` attribute greater than today."""
         today = today or today_()
@@ -190,18 +115,20 @@ class BirthdayManipulationManager:
     such as create, update, delete.
     """
 
-    def __init__(self, model) -> None:
+    def __init__(self, model: Type[Base]) -> None:
         self.model = model
 
-    def bulk_upsert(
-        self, session: Session, birthdays: Sequence["Birthday"]
+    def refresh_table(
+        self, session: Session, mappings: Sequence[dict[str, Any]]
     ) -> None:
-        """
-        Saves new instances to db.
-        Updates db rows if any changes occured.
-        Skips db rows if no changes detected.
-        Works 10x faster than sqlite_upsert.
-        """
+        """Delete all 'model' rows then populate db with given mappings."""
+        session.query(self.model).delete()
+        session.bulk_insert_mappings(self.model, mappings)
+
+    def bulk_save_objects(
+        self, session: Session, birthdays: Sequence[Type[Base]]
+    ) -> None:
+        """Saves new 'model' instances to db."""
         session.bulk_save_objects(birthdays)
 
     def sqlite_upsert(
@@ -226,7 +153,7 @@ class BirthdayManipulationManager:
 
     def sqlite_insert_ignore_duplicate(
         self, session: Session, name: str, date: dt.date
-    ):
+    ) -> None:
         """
         Insert new row into db. If such row already exists, ignore it.
         Uses `sqlite` specific syntax.
@@ -245,77 +172,25 @@ class BirthdayManipulationManager:
 class Birthday(Base):
     __tablename__ = "birthday"
 
-    name = Column(String(length=128), unique=True, primary_key=True)
-    date = Column(Date, primary_key=True)
+    id = Column(Integer, primary_key=True)
+    name = Column(String(length=128), unique=True)
+    date = Column(Date)
 
-    def __init__(self, **kw: Any):
-        class_ = self.__class__
+    @classmethod
+    @property
+    @cache
+    def queries(cls) -> BirthdayQueryManager:
+        """Setup query manager."""
+        return BirthdayQueryManager(cls)
 
-        # set QueryManager for SELECT operations
-        if not hasattr(class_, "queries"):
-            setattr(class_, "queries", BirthdayQueryManager(class_))
-
-        # set DataManipulationManager instance
-        # for CREATE, UPDATE and DELETE operations
-        if not hasattr(class_, "operations"):
-            setattr(class_, "operations", BirthdayManipulationManager(class_))
-
-        super().__init__(**kw)
+    @classmethod
+    @property
+    @cache
+    def operations(cls) -> BirthdayManipulationManager:
+        """Setup data manipulation manager."""
+        return BirthdayManipulationManager(cls)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}({self.name}, {self.date})"
-
-    # @classmethod
-    # def sqlite_upsert(
-    #     cls, session: Session, name: str, date: dt.date
-    # ) -> None:
-
-    #     insert_stmt = sqlite_insert(cls.__table__).values(
-    #         name=name, date=date
-    #     )
-    #     on_duplicate_update_stmt = insert_stmt.on_conflict_do_update(
-    #         index_elements=("name", "date"),
-    #         set_=dict(name=name, date=date),
-    #     )
-    #     session.execute(on_duplicate_update_stmt)
-    #     session.commit()
-
-
-class TelegramChat(Base):
-    __tablename__ = "telegram_chat"
-
-    tg_chat_id = Column(Integer, primary_key=True)
-    created_at = Column(
-        DateTime(timezone=True),
-        default=dt.datetime.now(tz=settings.TIME_ZONE),
-    )
-    updated_at = Column(
-        DateTime(timezone=True),
-        default=dt.datetime.now(tz=settings.TIME_ZONE),
-        onupdate=dt.datetime.now(tz=settings.TIME_ZONE),
-    )
-
-    def __repr__(self):
-        return f"{self.__class__.__name__}({self.tg_chat_id})"
-
-    @classmethod
-    def all(
-        cls, session: Session, to_list: bool = False
-    ) -> ScalarResult[Self] | list[Self]:
-        """
-        Return all model instances
-        either in ScalarResult or list form.
-        """
-        qs = session.scalars(select(cls))
-        return qs.all() if to_list else qs
-
-    @classmethod
-    def ids(
-        cls, session: Session, to_list: bool = False
-    ) -> ScalarResult[int] | list[int]:
-        """
-        Return id's of all model instances
-        either in ScalarResult or list form.
-        """
-        qs = session.scalars(select(cls.tg_chat_id))
-        return qs.all() if to_list else qs
+        return (
+            f"{self.__class__.__name__}({self.id}, {self.name}, {self.date})"
+        )

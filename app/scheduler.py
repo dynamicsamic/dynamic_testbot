@@ -5,18 +5,48 @@ from apscheduler.job import Job
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy.orm import Session
 
 from app import settings
-from app.bot import bot
 from app.db import jobstore_engine, models
+from app.file_parser import (
+    dispatch_birthday_message_to_chat,
+    preload_birthday_messages,
+)
 
-# from app.handlers.bdays import get_bdays_job
 
-jobstores = {"default": SQLAlchemyJobStore(engine=jobstore_engine)}
+class BotScheduler(AsyncIOScheduler):
+    """
+    Subclass of `AsyncIOScheduler` from `appscheduler` package
+    extended with some convinient custom methods.
+    """
 
-Scheduler = AsyncIOScheduler(
-    jobstores=jobstores,
+    __doc__ += AsyncIOScheduler.__doc__
+
+    def setup_daily_message_preload(self) -> Job:
+        """
+        Schedule daily birthday messages preload.
+        Need to be executed on each program startup.
+        """
+        return self.add_job(
+            preload_birthday_messages,
+            trigger=CronTrigger(day_of_week="mon-sun", hour=0, minute=10),
+            id=1,
+            replace_existing=True,
+        )
+
+    def add_chat_to_birthday_mailing(self, chat_id: int) -> Job:
+        """Schedule daily birthday messages delivery to provided chat."""
+        return self.add_job(
+            dispatch_birthday_message_to_chat,
+            trigger=CronTrigger(day_of_week="mon-sun", hour=9, minute=0),
+            id=str(chat_id),
+            replace_existing=True,
+            kwargs={"chat_id": chat_id},
+        )
+
+
+Scheduler = BotScheduler(
+    jobstores={"default": SQLAlchemyJobStore(engine=jobstore_engine)},
     timezone=settings.TIME_ZONE,
     executors={"default": AsyncIOExecutor()},
     job_defaults={"misfire_grace_time": 30, "coalesce": True},
@@ -51,11 +81,3 @@ def add_preload_job():
         replace_existing=True,
         id="1",
     )
-
-
-def load_jobs(db_session: Session) -> None:
-    """Load bday_job to Scheduler for all tg_chats in db."""
-    with db_session() as session:
-        tg_chats = models.TelegramChat.ids(session)
-    for chat_id in tg_chats:
-        add_job(chat_id)

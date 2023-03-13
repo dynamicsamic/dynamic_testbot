@@ -32,9 +32,7 @@ async def on_startup(dp: Dispatcher):
     """ """
     Session.configure(bind=db_engine)
     models.Base.metadata.create_all(db_engine)
-    # load_jobs(Session)
-    Scheduler.print_jobs()
-    add_preload_job()
+    Scheduler.setup_daily_message_preload()
     Scheduler.start()
     await set_bot_commands(dp.bot)
 

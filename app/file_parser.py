@@ -322,19 +322,15 @@ async def update_db_from_yadisk():
                 f"date conversion failure: {e}; " f"scipped row for {name}"
             )
             continue
-        birthdays.append(Birthday(name=name, date=birth_date))
+        birthdays.append({"name": name, "date": birth_date})
     with get_session() as session:
-        Birthday.operations.bulk_upsert(session, birthdays)
-        session.commit()
-        # bday = Birthday(name=name, date=birth_date)
-        # session.add(bday)
-        # try:
-        #     session.commit()
-        # except SQLAlchemyError as e:
-        #     logger.error(
-        #         f"Insert birthday instance to DB error: {e}; "
-        #         f"Insert skipped for {name}"
-        #     )
+        Birthday.operations.refresh_table(session)
+        # Birthday.operations.bulk_upsert(session, birthdays)
+        try:
+            session.commit()
+        except SQLAlchemyError as e:
+            logger.error(f"Birthday bulk_upsert error: {e}; ")
+            raise
 
 
 class NotificationStorage(dict):
@@ -346,9 +342,8 @@ Storage = NotificationStorage()
 bot = get_bot()
 
 
-async def preload_notifications():
+async def preload_birthday_messages():
     yadisk_token_valid = await disk.check_token()
-    bot = find_bot()
     if not yadisk_token_valid:
         await bot.send_message(
             settings.BOT_MANAGER_TELEGRAM_ID, text="callback"
@@ -370,15 +365,18 @@ async def preload_notifications():
             Storage.pop("warning", None)
     with get_session() as session:
         today_birthdays = Birthday.queries.today(session)
-        today_message = get_formatted_bday_message(today_birthdays)
+        future_birthdays = Birthday.queries.future(session)
+
+    if today_message := get_formatted_bday_message(today_birthdays):
         Storage.setdefault("today", today_message)
 
-        future_birthdays = Birthday.queries.future(session)
-        future_message = get_formatted_bday_message(future_birthdays)
+    if future_message := get_formatted_bday_message(future_birthdays):
         Storage.setdefault("future", future_message)
 
 
-async def dispatch_message_to_chat2(bot_path: str, chat_id: int) -> None:
+async def dispatch_birthday_message_to_chat(
+    bot_path: str, chat_id: int
+) -> None:
     bot = find_bot(bot_path)
     for message in Storage.values():
         await bot.send_message(chat_id, message)

@@ -128,8 +128,8 @@ def find_bot(path: str) -> Bot:
 
 
 def get_bot_path() -> str:
-    local_path, bot_name = settings.BOT_INSTANCE.split(".")
-    path_to_bot = f'{settings.APP_NAME}{".".join(local_path)}:{bot_name}'
+    *local_path, bot_name = settings.BOT_INSTANCE.split(".")
+    path_to_bot = f'{settings.APP_NAME}.{".".join(local_path)}:{bot_name}'
     return path_to_bot
 
 
