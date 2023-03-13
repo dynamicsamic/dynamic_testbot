@@ -7,7 +7,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.db import models
 
 from .common import constants, today
-from .fixtures import create_tables, create_test_data, db_session, engine
+from .fixtures import (
+    create_birthday_range,
+    create_tables,
+    create_test_data,
+    db_session,
+    engine,
+)
 
 
 def test_birthday_get_method_with_valid_name_returns_model_instance(
@@ -150,8 +156,20 @@ def test_birthday_future_all_method_returns_list_of_instaces_with_date_greater_t
     assert len(future_birthdays) == constants["FUTURE_BDAY_NUM"] + 1
 
 
-@pytest.mark.current
-def test_birthday_bulk_upsert_saves_new_instances_to_db(db_session):
+def test_birthday_refresh_table_method_deletes_all_rows_and_populates_db_again(
+    db_session, create_birthday_range
+):
+    initial_birthday_num = models.Birthday.queries.count(db_session)
+    assert initial_birthday_num == 400  # number of birthdays created
+
+    models.Birthday.operations.refresh_table(
+        db_session, [{"name": "valid", "date": today()}]
+    )
+    db_session.commit()
+    assert models.Birthday.queries.count(db_session) == 1
+
+
+def test_birthday_bulk_save_objects_saves_new_instances_to_db(db_session):
     objects_num_to_be_created = 400
     names = [f"name{i}" for i in range(objects_num_to_be_created)]
     date = today()
@@ -169,11 +187,7 @@ def test_birthday_bulk_upsert_saves_new_instances_to_db(db_session):
     )
 
 
-def test_birthday_bulk_upsert_skips_existing_instances(db_session):
-    pass
-
-
-def test_birthday_upsert_method_with_valid_data_saves_instance_to_db(
+def test_birthday_sqlite_upsert_method_with_valid_data_saves_instance_to_db(
     db_session,
 ):
     initial_birthday_num = models.Birthday.queries.count(db_session)
@@ -184,7 +198,7 @@ def test_birthday_upsert_method_with_valid_data_saves_instance_to_db(
     assert inserted_obj.date == today()
 
 
-def test_birthday_upsert_method_updates_instance_instead_of_creating(
+def test_birthday_sqlite_upsert_method_updates_instance_instead_of_creating(
     db_session,
 ):
     models.Birthday.operations.sqlite_upsert(db_session, "valid_name", today())
